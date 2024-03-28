@@ -1,0 +1,1690 @@
+---
+title: "esKnow_SuppAnalysis"
+author: "Karen Sasmita"
+date: "2024-02-23"
+output: html_document
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, cache = TRUE) 
+```
+
+**Load libraries**
+
+```{r load_libraries}
+rm(list = ls())
+currDir = getwd()
+
+library(dplyr)
+library(ggplot2)
+library(emmeans)
+library(lme4)
+library(tidyr)
+library(foreach)
+library(ggsignif)
+library(corrplot)
+library(tidyverse)
+library(ggcorrplot)
+library(lsr)
+library(ggpubr)
+library(patchwork)
+library(scales)
+library(cowplot)
+library(pdftools)
+library(effectsize)
+library(drc)
+library(Mediana)
+library(ggchicklet) #to make rounded rectangles in ggplot
+library(ggdendro)
+#library(DescTools)
+source("get.agreement.metrices.R")
+
+```
+
+**Setup plot theme**
+
+```{r setupPlot}
+#Set text size and colors
+txt.size = 14
+txt.color = "black"
+txt.face = "bold"
+txt.font = "Arial"
+
+#Define colors
+colors <- data.frame(point.colors = c('#268072','#F37C2D','#F9C047', "#91b8af", "#fcb78f", "#f6e8d5"), label = c('u.color', 'i.color', 'j.color', 'u2.color', 'i2.color', 'j2.color'))
+jitter.outline = "#f1f1f1"
+outline.color = "#41424c"
+legend.color = "#51535c"
+legend2.color = "#9d9ea3"
+
+#jitter for individual agreement values
+jitter.alpha = .7
+jitter.width = 0.3
+jitter.size = 2
+
+#point for mean agreement value 
+point.size = 5
+point.alpha = 1
+point.stroke = 1.4
+point.shape = 21
+#errorbar width 
+errorbar.width = .3
+errorbar.alpha = 1
+errorbar.size = 1.2
+
+grain.labs <- c("Coarse", "Fine")
+names(grain.labs) <- c("c", "f")
+
+#Set theme for plotting 
+theme.esKnow <- theme(
+  panel.grid.minor = element_blank(), 
+  panel.grid.major = element_blank(), 
+  #panel.background= element_blank(), 
+  panel.border = element_blank(),
+  panel.spacing = unit(.05,'in'), 
+  panel.background = element_rect(fill = "transparent",colour = NA),
+  plot.background = element_rect(fill = "transparent",colour = NA),
+  axis.line = element_line(size = 0.5, colour = outline.color), 
+  axis.title = element_text(size = txt.size, family = txt.font, color = txt.color, face = txt.face),
+  axis.text = element_text(size = txt.size, family = txt.font, color = txt.color, face = txt.face),
+  axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
+  axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
+  strip.background = element_rect(colour = NA, fill = "transparent"), 
+  strip.text = element_text(size = txt.size, family = txt.font, color = txt.color, face = txt.face), 
+  legend.title = element_blank(),
+  legend.key = element_rect(colour = NA, fill = NA),
+  plot.title = element_text(hjust = 0.5,size = txt.size, family = txt.font, color = txt.color, face = txt.face)
+)
+```
+
+# Load things
+**Load data and utils**
+
+```{r loadThings}
+
+setwd('../data/')
+
+#segmentation data 
+esKnow1.segmentdata <- read.delim('esKnow_segmentdata.txt', head = TRUE)
+esKnow1.clustering <- read.csv('esKnow_clustering_separated.csv', head = TRUE)
+
+esKnow2.segmentdata <- read.delim("esKnow2_segmentdata.txt", head = TRUE)
+
+esKnow2.lagCRP <- read.csv('esKnow2_lagCRP.csv', head = TRUE)
+esKnow2.precision <- read.csv('esKnow2_precision.csv', head = TRUE)
+esKnow2.recall <- read.csv('esKnow2_recallScores.csv', head = TRUE)
+esKnow2.clustering <- read.csv('esKnow2_clustering.csv', head = TRUE)
+esKnow2.recallTime <- read.csv('esKnow2_recallTime.csv', head = TRUE)
+
+#list of pseudo index for recall coding of esKnow 2
+esKnow2.pseudoIndex <- read.csv('esKnow2_pseudoIndex.csv', head = TRUE)
+
+esKnow.eventTimeIndex <- read.csv('esKnow_eventTimeIndex.csv', head = TRUE)
+
+iron.memorability <- read.csv('3Iron10Min_memorability.csv', head = TRUE)
+corn.memorability <- read.csv('Corn10Min_memorability.csv', head = TRUE)
+
+
+```
+
+Select data for esKnow2 segmentation and rename movie to match movie naming of esKnow1
+```{r esKnow2_tidyData}
+esKnow2.segmentdata <- esKnow2.segmentdata[esKnow2.segmentdata$movName != 'prac',] #exclude practice data
+
+esKnow2.segmentdata$movName <- unlist(lapply(esKnow2.segmentdata$movName, function(x){
+  if(x == 'iron'){
+    return("3Iron")
+  } else {
+    return("Corn")
+  }
+}))
+
+```
+
+Define factors and levels 
+```{r defineDataFactorLevels}
+grain.factor = c("c", "f")
+condition.factor = c("Uninterrupted", "Interrupted", "Jumbled")
+movie.factor = c("3Iron", "Corn")
+
+##reorder factors 
+#segmentation data 
+esKnow1.segmentdata$grain <- factor(esKnow1.segmentdata$grain, levels = grain.factor)
+esKnow1.segmentdata$condition <- factor(esKnow1.segmentdata$condition, levels = condition.factor)
+esKnow1.segmentdata$movName <- factor(esKnow1.segmentdata$movName, levels = movie.factor)
+esKnow1.segmentdata$grainorder <- factor(esKnow1.segmentdata$grainorder, levels = c(1,2)) #whether the segmentation data is from the 1st or 2nd round of segmentation
+
+esKnow2.segmentdata$grain <- factor(esKnow2.segmentdata$grain, levels = grain.factor)
+esKnow2.segmentdata$condition <- factor(esKnow2.segmentdata$condition, levels = condition.factor)
+esKnow2.segmentdata$movName <- factor(esKnow2.segmentdata$movName, levels = movie.factor)
+
+#recall data 
+esKnow1.clustering$condition <- factor(esKnow1.clustering$condition, levels = condition.factor)
+esKnow1.clustering$movName <- factor(esKnow1.clustering$movName, levels = movie.factor)
+
+esKnow2.clustering$condition <- factor(esKnow2.clustering$condition, levels = condition.factor)
+esKnow2.clustering$movName <- factor(esKnow2.clustering$movName, levels = movie.factor)
+
+esKnow2.lagCRP$condition <- factor(esKnow2.lagCRP$condition, levels = condition.factor)
+esKnow2.lagCRP$movName <- factor(esKnow2.lagCRP$movName, levels = movie.factor)
+
+esKnow2.precision$condition <- factor(esKnow2.precision$condition, levels = condition.factor)
+esKnow2.precision$movName <- factor(esKnow2.precision$movName, levels = movie.factor)
+
+esKnow2.recall$condition <- factor(esKnow2.recall$condition, levels = condition.factor)
+esKnow2.recall$movName <- factor(esKnow2.recall$movName, levels = movie.factor)
+
+esKnow2.recallTime$condition <- factor(esKnow2.recallTime$condition, levels = condition.factor)
+esKnow2.recallTime$movName <- factor(esKnow2.recallTime$movName, levels = movie.factor)
+
+
+
+```
+
+Define some varible constants to use in analyses later on.
+```{r defineConstants}
+#movie duration
+iron.mov.dur = 589 #seconds
+corn.mov.dur = 566 #seconds
+
+#for density estimations
+bw = 'SJ'
+c.adj = 0.1
+f.adj = 0.05
+dens.hz = 1
+
+#for timeseries 
+bin.size = 1 #seconds
+
+#for spectral density estimation
+spect.adj = .01 #need to be low enough to pick up variation in segmentation pattern over time
+del = 1
+bw = 'SJ'
+
+#to divide segmentation data per clip into n segments 
+esKnow1.nsegment <- 12 #divide each 1 minute clip to segments of 5s intervals 
+esKnow2.nsegment <- 5 #divide each 5 second clip to segments of 1s intervals
+
+#list of separated fine event number (only applicable for esKnow1)
+iron_separated <- c(10, 22, 30, 38, 43, 50, 58, 62, 67)
+corn_separated <- c(7, 14, 21, 30, 37, 45, 52, 59, 65)
+
+#total number of event units coded in recall 
+nEvents_iron_fine <- 74
+nEvents_corn_fine <- 69
+
+nEvents_iron_coarse <- 25
+nEvents_corn_coarse <- 22
+```
+
+# Clean data for experiment 1
+
+Check each participant's number of button presses for coarse and fine grain segmentation 
+```{r excludeSub_segmentation_esKnow1}
+esKnow1.bp <- esKnow1.segmentdata %>% dplyr::group_by(condition, movName, grain, subid) %>% 
+  dplyr::summarise(n.bp = length(bpTime.series)) %>% spread(grain, n.bp)
+
+#investigate if there are participants who has more bp for coarse vs fine 
+esKnow1.bp[(esKnow1.bp$f - esKnow1.bp$c) < 0,]
+
+#exclude participants with coarse bp > fine bp 
+esKnow1.segmentdata <- esKnow1.segmentdata %>% dplyr::filter(!(condition == unique(esKnow1.bp$condition[(esKnow1.bp$f - esKnow1.bp$c) < 0]) & subid %in% esKnow1.bp$subid[(esKnow1.bp$f - esKnow1.bp$c) < 0]))
+```
+Participants 23 and 17 from the Jumbled condition have more coarse bp than fine bp. This indicates that they may not have followed task instructions (fine segmentation should result in more button presses). So exclude these participants from the recall data too. 
+
+```{r excludeSub_recall_esKnow1}
+#exclude which segmentation data was excluded from recall analysis 
+esKnow1.clustering <- esKnow1.clustering %>% dplyr::filter(!(condition == "Jumbled" & exp_subid %in% c(23, 17)))
+```
+
+# Additional analyses on experiment 1
+
+## Segmentation analyses on first segmentation task round for experiment 1
+
+### Button press rate 
+
+***Calculate button press rates***
+```{r calculate_esKnow1_bpRate}
+esKnow1.round1 <- esKnow1.segmentdata[esKnow1.segmentdata$grainorder == 1,]
+
+esKnow1.bp <- esKnow1.round1 %>% dplyr::group_by(condition, movName, grain, subid, grainorder) %>% 
+  dplyr::summarise(n.bp = length(bpTime.series))
+
+#Calculate the rate of button press per minute for each movie 
+for (i in 1:nrow(esKnow1.bp)){
+  if(esKnow1.bp$movName[i] == "3Iron"){
+    esKnow1.bp$bpRate[i] <- esKnow1.bp$n.bp[i]/(iron.mov.dur/60)
+  } else if (esKnow1.bp$movName[i] == "Corn"){
+    esKnow1.bp$bpRate[i] <- esKnow1.bp$n.bp[i]/(corn.mov.dur/60)
+  }
+}
+
+```
+
+***Buil and compare models examining button press rates***
+
+```{r builModel_esKnow1_bpRate}
+esKnow1.bpRate.lmer <- lmer(bpRate~condition*grain + movName + (1|subid), data = esKnow1.bp)
+esKnow1.bpRate.lmer_B <- lmer(bpRate~condition*grain*movName + (1|subid), data = esKnow1.bp)
+
+anova(esKnow1.bpRate.lmer,esKnow1.bpRate.lmer_B)
+
+```
+
+Adding movie as interaction did not improve model fit, so use the simpler model for subsequent analyses. 
+
+```{r compareMeans_esKnow1_bpRate}
+joint_tests(esKnow1.bpRate.lmer)
+eta_squared(esKnow1.bpRate.lmer)
+summary(emmeans(esKnow1.bpRate.lmer, "grain", contr = "revpairwise", weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+```
+
+There is no effect of condition on bpRate and as expected, bpRate for fine segmentation is significantly higher compared to coarse segmentation in all conditions (no condition*grain interaction)
+
+
+***Plot overall button press rate.***
+
+```{r plot_esKnow1_bpRate}
+esKnow1.bpRate_plot <- ggplot(esKnow1.bp, aes(x = condition, y = bpRate, fill = condition, color = condition))+
+  geom_jitter(width = jitter.width, alpha = jitter.alpha-.2, shape = point.shape, color = jitter.outline, size = jitter.size)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width +.15, color = outline.color, alpha = errorbar.alpha, size = errorbar.size)+
+  geom_point(stat = "summary", fun = "mean", size = point.size, shape = point.shape, color = outline.color, stroke = point.stroke, legend = FALSE)+
+  #geom_signif()+
+  scale_fill_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_color_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_x_discrete(labels=c("U", "I", "J"))+
+  #geom_segment(data = ann_line, aes(x = xStart, y = yStart, xend = xEnd, yend = yEnd), inherit.aes = FALSE, color = outline.color, size = 0.5) +
+  #geom_text(data = ann_text, aes(x = x, y = y, label = text), inherit.aes = FALSE, color = outline.color, size = 8, fontface = txt.face) +
+  facet_wrap(~grain, scales = "fixed", labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine")))+
+  coord_cartesian(ylim=c(0, 20))+
+  labs(y = "Button Press / minute", x = "") + 
+  theme.esKnow 
+
+esKnow1.bpRate_plot
+```
+
+
+### Agreement index 
+**Calculate agreement index**
+- comparing each individual to other individuals in the same condition
+- comparing each individual with other other individuals in different conditions
+
+```{r calculate_esKnow1_agreementIndex}
+esKnow1.agreement.index <- data.frame()
+for(cond in unique(esKnow1.round1$condition)){
+  for (segGrain in unique(esKnow1.round1$grain)){
+    for (movieName in unique(esKnow1.round1$movName)){
+      crossConds <- unique(esKnow1.round1$condition)[unique(esKnow1.round1$condition) != cond]
+
+      dat <- esKnow1.round1[esKnow1.round1$condition == cond & esKnow1.round1$grain == segGrain & esKnow1.round1$movName == movieName,]
+      crossdat <- esKnow1.round1[esKnow1.round1$condition != cond & esKnow1.round1$grain == segGrain & esKnow1.round1$movName == movieName,]
+
+      if(movieName == "3Iron"){
+        mov.dur = iron.mov.dur
+      } else {mov.dur = corn.mov.dur}
+
+      #define timeseries
+      timeseries <- seq(from = 1, to = mov.dur, by = bin.size)
+
+      for(sub in unique(dat$subid)){
+        grainorder <- unique(dat$grainorder[dat$subid == sub])
+        sub.ts <- as.numeric(timeseries %in% floor(dat$bpTime.series[dat$subid == sub]))
+
+        gp.timeseries <- unlist(tapply(dat$bpTime.series[dat$subid != sub], dat$subid[dat$subid!=sub], function(x){return(as.numeric(timeseries %in% floor(x)))}))
+        gp.ts <- tapply(gp.timeseries, rep(timeseries, length(unique(dat$subid))-1), mean)
+
+        #get random timeseries
+        random.timeseries <- unlist(tapply(gp.timeseries, rep(sample(length(unique(dat$subid))-1), each = length(timeseries)), sample))
+        random.ts <- tapply(random.timeseries, rep(timeseries, length(unique(dat$subid))-1), mean)
+
+        comparisons <- c(cond, "random")
+        agreements <- rbind(get.agreement.index(sub.ts, gp.ts), get.agreement.index(sub.ts, random.ts))
+
+        for(crossCond in crossConds){
+          crossgp.bp <- crossdat$bpTime.series[crossdat$condition == crossCond]
+          crossgp.timeseries <- unlist(tapply(crossgp.bp, crossdat$subid[crossdat$condition == crossCond], function(x){return(as.numeric(timeseries %in%floor(x)))}))
+          crossgp.ts <- tapply(crossgp.timeseries, rep(timeseries, length(unique(crossdat$subid[crossdat$condition == crossCond]))), mean)
+          comparisons <- c(comparisons, crossCond)
+          agreements <- rbind(agreements, get.agreement.index(sub.ts, crossgp.ts))
+        }
+
+        comp_types <- c("same", "random", "crossCond", "crossCond")
+
+        esKnow1.agreement.index <- rbind(esKnow1.agreement.index, data.frame(subid = rep(sub, length(comparisons)),
+                                                                             indiv_cond = factor(rep(cond, length(comparisons)), levels = condition.factor),
+                                                                             movName = factor(rep(movieName, length(comparisons)), levels = movie.factor),
+                                                                             grain = factor(rep(segGrain, length(comparisons)), levels = grain.factor),
+                                                                             group_cond = factor(comparisons, levels = c(condition.factor, "random")),
+                                                                             comparison_type = factor(comp_types),
+                                                                             grainorder = factor(rep(grainorder, length(comparisons)), levels = c(1,2)),
+                                                                             min_corr = agreements[,1],
+                                                                             max_corr = agreements[,2],
+                                                                             act_corr = agreements[,3],
+                                                                             agreementIndex = agreements[,4]))
+      }
+    }
+  }
+}
+```
+
+If interrupting or jumbling videos influence segmentation pattern, we can expect that compared to agreement within uninterrupted group (i.e., uninterrupted individuals compared with uninterrupted group): 
+Poorer agreement when interrupted or jumbled individuals are compared with uninterrupted group
+
+**Build and compare models**
+```{r  buildModels_esKnow1_agreementIndex_Test1}
+#test for (1)
+esKnow.agreement.withU <- esKnow1.agreement.index %>% dplyr::filter(group_cond == "Uninterrupted") %>% droplevels()
+esKnow.agreement.withU.lmer <- lmer(agreementIndex~indiv_cond*grain + movName + (1|subid), data = esKnow.agreement.withU)
+esKnow.agreement.withU.lmer.B <- lmer(agreementIndex~indiv_cond*grain*movName + (1|subid), data = esKnow.agreement.withU)
+
+anova(esKnow.agreement.withU.lmer, esKnow.agreement.withU.lmer.B)
+```
+Adding movie as interaction term did not improve model fit, use simpler model for subsequent analyses
+
+**Test for main and interaction effects**
+```{r testModels_esKnow1_agreementIndex_Test1}
+joint_tests(esKnow.agreement.withU.lmer)
+eta_squared(esKnow.agreement.withU.lmer)
+```
+
+There is no main effect of individual condition on agreement index, suggesting that when compared to Uninterrupted group, Interrupted and Jumbled individuals performed similarly to uninterrupted individuals (as measured by agreement index)
+
+There is a significant conditionxgrain interaction. 
+
+**Pairwise comparison to test for interaction effects**
+
+```{r test_esKnow1_agreementIndex_interaction}
+summary(emmeans(esKnow.agreement.withU.lmer.B, c("grain"),
+                contr = "revpairwise", weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+
+summary(emmeans(esKnow.agreement.withU.lmer.B, c("grain", "indiv_cond"),
+                contr = list(UvsI = c(-.5, .5, .5, -.5, 0,0),
+                             UvsJ = c(-.5, .5, 0, 0, .5, -.5),
+                             IvsJ = c(0, 0, -.5, .5, .5, -.5)), weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+
+```
+In all condition, agreement index with uninterrupted group for fine segmentation is higher than agreement index with uninterrupted group for coarse segmentation, however, difference between fine and coarse is more prominent for jumbled group. 
+
+**Plot**
+```{r plot_esKnow1_agreementIndex_IndivVSUgroup}
+
+esKnow1.agreementIndex_indivVSUgroup_plot <- ggplot(esKnow.agreement.withU, aes(x = indiv_cond, y = agreementIndex, fill = indiv_cond, color = indiv_cond))+
+  geom_jitter(width = jitter.width, alpha = jitter.alpha-.2, shape = point.shape, color = jitter.outline, size = jitter.size)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width +.15, color = outline.color, alpha = errorbar.alpha, size = errorbar.size)+
+  geom_point(stat = "summary", fun = "mean", size = point.size, shape = point.shape, color = outline.color, stroke = point.stroke, legend = FALSE)+
+  #geom_signif()+
+  scale_fill_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_color_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_x_discrete(labels=c("U", "I", "J"))+
+  facet_wrap(~grain, scales = "fixed", labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine")))+
+  coord_cartesian(ylim=c(0, 1))+
+  labs(y = "Agreement Index", x = "Individual") + 
+  theme.esKnow 
+esKnow1.agreementIndex_indivVSUgroup_plot
+
+# setwd('../plots/')
+# ggsave("esKnow1_agreement_indivVSUgroup.pdf", plot = esKnow1.agreementIndex_indivVSUgroup_plot, width = 6, height = 4, device = cairo_pdf)
+# pdf_convert(pdf = "esKnow1_agreement_indivVSUgroup.pdf", format = "png", dpi = 300, 
+#             filenames = "esKnow1_agreement_indivVSUgroup.png")
+
+```
+
+From analysis of agreement index, there seems to be minimal evidence for influence of interrupting or jumbling videos on segmentation pattern over time. 
+
+### Evaluate button press at shorter intervals within each clip 
+
+Minimal evidence for effect of disruption in information flow on segmentation may suggest that there is enough information contained within each 1 minute clip for segmentation (i.e., segmentation may rely on information accumulated over shorter timescale). So, look at more potential for more localized difference in segmentation across conditions. 
+
+**Calculate button press rates at every 5s interval of each one minute clip.** 
+
+```{r calculate_esKnow1_bp5sec}
+time.intervals <- seq(from = 1, to = esKnow1.nsegment, by = 1)
+n.clip <- length(unique(esKnow1.round1$clipNo))
+esKnow1.round1$clipTwelft <- factor(ceiling(esKnow1.round1$bpTime/5), levels = time.intervals)
+
+esKnow1.bp5sec <- esKnow1.round1 %>% dplyr::group_by(subid, condition, movName, grain,clipTwelft) %>% dplyr::summarise(n.bp = n()/n.clip) %>% complete(clipTwelft, fill = list(n.bp = 0)) %>% drop_na(clipTwelft)
+
+```
+
+**Build and compare models**
+```{r buildModels_esKnow1_bp5sec_model}
+esKnow1.bp5sec.lmer <- lmer(n.bp~condition*grain*clipTwelft + movName + (1|subid), data = esKnow1.bp5sec)
+esKnow1.bp5sec.lmer_B <- lmer(n.bp~condition*grain*clipTwelft*movName + (1|subid), data = esKnow1.bp5sec)
+
+anova(esKnow1.bp5sec.lmer, esKnow1.bp5sec.lmer_B)
+
+```
+Adding movieName as interactions improved model fit.So use the most complex model for subsequent analyses. 
+
+```{r analyseModel_esKnow1_bp5sec_model}
+joint_tests(esKnow1.bp5sec.lmer_B)
+eta_squared(esKnow1.bp5sec.lmer_B, partial = TRUE)
+```
+Condition*clipTwelft interaction: evidence for difference in n.bp between conditions across the 5s intervals. 
+
+Test for main effect of 5s segment by grain and condition
+```{r compareMeans_esKnow1_bp5sec_byCondition}
+#main effect of time by grain and condition
+test(contrast(emmeans(esKnow1.bp5sec.lmer_B, "clipTwelft", by = c( "condition", "grain"), type = "response", weights = "proportional", adjust = "holm"), "trt.vs.ctrl"), joint = TRUE)
+```
+There is an effect of 5s segment for fine Uninterrupted and for both grain in Jumbled. 
+
+Test for difference in bp every interval for J vs U vs I
+```{r compareMeans_esKnow1_bp5sec_byConditionxGrain}
+#main effect of time by grain and condition
+summary(emmeans(esKnow1.bp5sec.lmer_B, "condition", by = c( "clipTwelft", "grain"), type = "response", weights = "proportional", adjust = "holm", contr ="revpairwise")$contrasts, infer = TRUE)
+```
+
+Investigate whether effect of 5s segment for fine Uninterrupted is meaningful. Extract significant pairwise difference between 5s segment for fine uninterrupted. 
+```{r getSummary_esKnow1_bp5sec_clipTwelft_uninterrupted}
+t <- summary(emmeans(esKnow1.bp5sec.lmer_B, "clipTwelft", by = c("grain", "condition"), contr = "pairwise", adjust = "Holm")$contrasts, infer= TRUE)
+t[t$grain == "f"&t$condition == "Uninterrupted" & t$p.value <= .05,]
+t
+
+```
+Main effect of 5s segment in fine uniterrupted apparent in select combination of 5s segment pair - the different in n.bp across 5s segment is not systematic. 
+
+Extract significant pairwise difference between 5s segment for coarse Jumbled 
+```{r getSummary_esKnow1_bp5sec_clipTwelft_jumbledCoarse}
+t[t$grain == 'c' & t$condition == "Jumbled" & t$p.value <= 0.05,]
+min(t$t.ratio[t$grain == 'c' & t$condition == "Jumbled" & t$p.value <= 0.05])
+max(t$p.value[t$grain == 'c' & t$condition == "Jumbled" & t$p.value <= 0.05])
+
+min(t$upper.CL[t$grain == 'c' & t$condition == "Jumbled" & t$p.value <= .05] - t$lower.CL[t$grain == 'c' & t$condition == "Jumbled" & t$p.value <= .05])
+
+```
+
+Extract significant pairwise difference between 5s segment for fine Jumbled 
+```{r getSummary_esKnow1_bp5sec_clipTwelft_jumbledFine}
+t[t$grain == 'f' & t$condition == "Jumbled" & t$p.value <= .05,]
+min(t$t.ratio[t$grain == 'f' & t$condition == "Jumbled" & t$p.value <= 0.05])
+max(t$p.value[t$grain == 'f' & t$condition == "Jumbled" & t$p.value <= 0.05])
+min(t$upper.CL[t$grain == 'f' & t$condition == "Jumbled" & t$p.value <= .05] - t$lower.CL[t$grain == 'f' & t$condition == "Jumbled" & t$p.value <= .05])
+```
+First 5s segment has consistently higher bp for both fine and coarse Jumbled segmentation. 
+
+[Jumbled - (Uninterrupted & Interrupted)] in the first 5 seconds vs the rest of time
+```{r compareMeans_esKnow1_bp5sec_clipTwelft_J-UI}
+#Jumbled - (uninterrupted & interrupted) in the first 5 seconds vs the rest of time 
+summary(emmeans(esKnow1.bp5sec.lmer_B, c("condition", "clipTwelft"), by = "grain", contr = list(JvsUI = c(-.5,-.5, 1,.5/11,.5/11,-1/11,.5/11,.5/11,-1/11,.5/11,.5/11,-1/11,.5/11,.5/11,-1/11,.5/11,.5/11,-1/11,.5/11,.5/11,-1/11,.5/11,.5/11,-1/11,.5/11,.5/11,-1/11,.5/11,.5/11,-1/11,.5/11,.5/11,-1/11,.5/11,.5/11,-1/11)), adjust = "holm")$contrasts, infer = T)
+```
+There is an increase in button press for Jumbled condition during the first 5 second of a new 1 min clip, but this stabilizes after 5s (difference between Jumbled and (Uninterrupted & Interrupted) is significantly higher in the first 5 seconds vs the rest of the clip). 
+
+
+```{r plot_esKnow1_bp5sec}
+
+esKnow1.bp5sec.plot <- ggplot(esKnow1.bp5sec, aes(x = clipTwelft, y = n.bp, fill = condition, color = condition))+
+  #geom_jitter(width = jitter.width, alpha = 0.1, show.legend = FALSE)+
+  #geom_line(stat = "summary", fun = "mean", size = .8)+
+  stat_summary(aes(y = n.bp, group = condition), fun.y = mean, geom = "line", size = 1.25, show.legend = FALSE)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width + .2, color = outline.color, alpha = 1.2, size = 1.1)+
+  geom_point(stat = "summary", fun = "mean", size = point.size, alpha = point.alpha, shape = 21, color = outline.color, stroke = 1.1, show.lengend = FALSE)+
+  scale_fill_manual(values = colors$point.colors, labels = c("U", "I", "J"))+
+  scale_color_manual(values = colors$point.colors, labels = c("U", "I", "J"))+
+  scale_x_discrete(breaks = c(2,4,6,8,10,12), labels = c("10", "20", "30", "40", "50", "60"))+
+  scale_y_continuous(breaks = c(0,1), labels = c("0", "1"))+
+  facet_wrap(~grain, scales = "fixed", labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine")))+
+  coord_cartesian(ylim=c(0, 1.25), xlim = c(0.5,12))+
+  labs(y = "Button press rate/ interval", x = "Intervals within 1min clip (s)")+
+  annotate("text", x = 1, y = 1.2, label = "***", color = outline.color, size = 10)+
+  theme(axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)))+
+  theme(axis.title.x = element_text(margin = margin(t = 15, r = 0, b = 0, l = 0)))+
+  theme(legend.position = c(.9,.1), legend.background=element_blank(), legend.direction = "horizontal")+
+  theme(legend.text=element_text(size=txt.size), plot.caption = element_text(size = txt.size))+
+  theme.esKnow
+
+
+esKnow1.bp5sec.plot
+
+# setwd('../plots_transparentBG/')
+# ggsave("esKnow1_bp5Sec_wlegend.png", plot = esKnow1.bp5sec.plot, width = 7, height = 4, bg = "transparent")
+# 
+# setwd('../plots/')
+# ggsave("esKnow1_bp5Sec.pdf", plot = esKnow1.bp5sec.plot, width = 9, height = 4, device = cairo_pdf)
+# pdf_convert(pdf = "esKnow1_bp5Sec.pdf", format = "png", dpi = 300,
+#             filenames = "esKnow1_bp5Sec.png")
+```
+
+## Experiment 1 segmentation behavior on first round data conclusion 
+Consistent with the main analyses, adding discontinuity and incoherence in information flow minimally impacts overall segmentation. When information cannot be accumulated coherently over time, segmentation rate briefly increase but quickly stabilizes when information can be accumulated coherently beyond 5 seconds.
+
+## Plot figure S1 
+
+```{r plot_figureS1}
+## Create figure for segmentation results from esKnow (Figure 2)
+figS1_top <- ggarrange(esKnow1.bpRate_plot, esKnow1.agreementIndex_indivVSUgroup_plot,
+                      widths = c(1, 1),
+                     labels = c("A", "B"),
+                     ncol = 2, nrow = 1)
+figureS1 <- ggarrange(figS1_top, esKnow1.bp5sec.plot,
+                     labels = c("", "C"),
+                     ncol = 1, nrow = 2)
+
+# fig2_top <- ggarrange(esKnow1.bpRate_plot, esKnow1.agreementIndex_indivVSUgroup_plot,
+# labels = c("A", "B"), ncol = 2, nrow = 1)
+# fig2_middle <- ggarrange(esKnow1.coarse.dens, esKnow1.fine.dens, ncol = 1, nrow = 2, common.legend = TRUE)
+# figure2 <- ggarrange(fig2_top, fig2_middle, esKnow1.bp5sec.plot,
+#                      heights = c(1,1.2, 1.2),
+#                      labels = c('', 'C', 'D'),
+#                      ncol = 1, nrow = 3)
+figureS1
+
+# setwd('../plots/')
+# ggsave("esKnow1_figureS1.pdf", plot = figureS1, width = 9, height = 7, device = cairo_pdf)
+# pdf_convert(pdf = "esKnow1_figureS1.pdf", format = "png", dpi = 300,
+#             filenames = "esKnow1_figureS1.png")
+
+```
+
+## Free recall analyses for experiment 1
+
+# Scene memorability scores 
+
+There's significantly higher recall rate for separated events for 3Iron that is consistent across conditions. There may be something 'special' about these events. One potential is that scenes in separated events are somehow more memorable. Inspect memorability scores for separated vs intact events. 
+
+
+```{r calculate_esKnow1_memorability}
+iron.memorability <- iron.memorability[iron.memorability$time <= iron.mov.dur,]
+iron.memorability$fineEventNo <- 0
+for(i in seq(1:nrow(iron.memorability))){
+  iron.memorability$fineEventNo[i] <-  unique(esKnow.eventTimeIndex$fineEventNo[which(floor(esKnow.eventTimeIndex$startTime[esKnow.eventTimeIndex$movName == "3Iron"]) <= iron.memorability$time[i] & ceiling(esKnow.eventTimeIndex$endTime[esKnow.eventTimeIndex$movName == "3Iron"]) >= iron.memorability$time[i])])
+}
+iron.memorability$separated <- factor(iron.memorability$fineEventNo %in% iron_separated)
+iron.memorability$movName <- "3Iron"
+
+corn.memorability <- corn.memorability[corn.memorability$time <= corn.mov.dur,]
+corn.memorability$fineEventNo <- 0
+for(i in seq(1:nrow(corn.memorability))){
+  corn.memorability$fineEventNo[i] <-  unique(esKnow.eventTimeIndex$fineEventNo[which(floor(esKnow.eventTimeIndex$startTime[esKnow.eventTimeIndex$movName == "Corn"]) <= corn.memorability$time[i] & ceiling(esKnow.eventTimeIndex$endTime[esKnow.eventTimeIndex$movName == "Corn"]) >= corn.memorability$time[i])])
+}
+corn.memorability$separated <- factor(corn.memorability$fineEventNo %in% corn_separated)
+corn.memorability$movName <- "Corn"
+
+allmov.memorability <- rbind(iron.memorability, corn.memorability)
+
+esKnow1.eventMemo.ann <- data.frame(xstart = c(1), xend = c(2),
+                                     ystart = c(0.9), yend = c(0.9),
+                                     x = c(1.5), y = c(.925),
+                                     label = c("***"),
+                                     movName = c("3Iron"))
+```
+
+```{r buildModels_esKnow1_memorability}
+memo.lm.A <- lm(memorability~separated+movName, data = allmov.memorability)
+memo.lm.B <- lm(memorability~separated*movName, data = allmov.memorability)
+anova(memo.lm.A, memo.lm.B)
+
+```
+
+```{r compareMeans_esKnow1_memorability}
+joint_tests(memo.lm.B)
+summary(emmeans(memo.lm.B, "separated", by = "movName", contr = "revpairwise", weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+
+```
+
+```{r plot_esKnow1_memorability}
+esKnow1.memo.plot <- ggplot(allmov.memorability, aes(separated, memorability, fill = separated, color = separated))+
+  geom_jitter(alpha = 0.3, position = position_jitterdodge(.7), size = jitter.size, shape = point.shape, color = jitter.outline)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width, color = outline.color, alpha = errorbar.alpha, position =position_dodge(0.5), size = 1) +
+  geom_point(stat = "summary", fun = "mean", size = point.size, shape = 21, color = outline.color, position = position_dodge(0.5), stroke = 1.2) + 
+  scale_color_manual(values = c("#7aa6c2", "#004c6d"))+
+  scale_fill_manual(values = c("#7aa6c2", "#004c6d"))+
+  geom_segment(data = esKnow1.eventMemo.ann, aes(x = xstart, y = ystart, xend = xend, yend = yend), color = outline.color, size = 1, inherit.aes = FALSE) +
+  geom_text(data = esKnow1.eventMemo.ann, aes(x = x, y = y, label = label), color = outline.color, size = 8, inherit.aes = FALSE) +
+  facet_wrap(~movName)+
+  scale_x_discrete(name = "Event type", labels = c("Intact", "Separated"))+
+  labs(y = "Memorability", x = "Separated")+
+  coord_cartesian(ylim = c(0,1))+
+  theme(legend.position = "none")+
+  theme.esKnow
+esKnow1.memo.plot
+# setwd('../plots/')
+# ggsave("esKnow1_eventMemo.pdf", plot = esKnow1.memo.plot, width = 6, height = 4, device = cairo_pdf)
+# pdf_convert(pdf = "esKnow1_eventMemo.pdf", format = "png", dpi = 300, 
+#             filenames = "esKnow1_eventMemo.png")
+
+```
+
+# Temporal clustering 
+
+```{r buildModel_esKnow1_temporalClustering}
+esKnow1.temporalClust.lmer <- lmer(temporal_clustering~condition*event_condition + movName + (1|exp_subid), data = esKnow1.clustering)
+esKnow1.temporalClust.lmer.B <- lmer(temporal_clustering~condition*event_condition*movName + (1|exp_subid), data = esKnow1.clustering)
+anova(esKnow1.temporalClust.lmer, esKnow1.temporalClust.lmer.B)
+
+joint_tests(esKnow1.temporalClust.lmer.B)
+eta_squared(esKnow1.temporalClust.lmer.B, partial = TRUE)
+
+```
+
+Examine if temporal clustering score is above chance 
+```{r compareMeans_esKnow1_temporalClustering_chance}
+summary(emmeans(esKnow1.temporalClust.lmer.B, "condition"), null = 0.5, infer=TRUE)
+```
+
+
+```{r compareMeans_esKnow1_temporalClustering_pairwise}
+summary(emmeans(esKnow1.temporalClust.lmer.B, "condition", weights = "proportional", contr = "pairwise")$contrasts, infer=TRUE)
+
+summary(emmeans(esKnow1.temporalClust.lmer.B, c("condition", "event_condition"), by = "movName", contr = "pairwise", adjust = "holm")$contrasts, infer = TRUE)
+```
+
+```{r plot_esKnow1_temporalClustering}
+esKnow1.clustering$event_condition <- factor(esKnow1.clustering$event_condition, levels = c("intact", 'separated'))
+esKnow1.temporalClustering_plot <- ggplot(esKnow1.clustering, aes(x = condition, y = temporal_clustering, fill = interaction(condition, event_condition), color = interaction(condition, event_condition)))+
+  geom_jitter(alpha = jitter.alpha-.2, position = position_jitterdodge(1.2), size = jitter.size, shape = point.shape, color = jitter.outline)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = 0.3, color = outline.color, alpha = errorbar.alpha, position =position_dodge(0.5), size = 1.2) +
+  geom_point(stat = "summary", fun = "mean", size = point.size, shape = 21, color = outline.color, position = position_dodge(0.5), stroke = 1.2) + 
+  scale_fill_manual(values = colors$point.colors)+
+  scale_color_manual(values = colors$point.colors)+
+  scale_x_discrete(labels=c("Uninterrupted" = "U", "Interrupted" = "I",
+                              "Jumbled" = "J"))+
+  geom_segment(aes(x = 2, y = 1.05, xend = 3, yend = 1.05), color = outline.color, size = 1) +
+  #geom_segment(aes(x = 2, y = 1.05, xend = 2, yend = 1), color = outline.color, size = 1) +
+  #geom_segment(aes(x = 3, y = 1.05, xend = 3, yend = 1), color = outline.color, size = 1) +
+
+  annotate("text", x = 2.5, y = 1.08, label = "***", color = outline.color, size = 8, fontface = txt.face) +
+  geom_segment(aes(x = 1, y = 1.2, xend = 3, yend = 1.2), color = outline.color, size = 1) +
+  #geom_segment(aes(x = 1, y = 1.2, xend = 1, yend = 1.15), color = outline.color, size = 1) +
+  #geom_segment(aes(x = 3, y = 1.2, xend = 3, yend = 1.15), color = outline.color, size = 1) +
+  annotate("text", x = 2, y = 1.23, label = "***", color = outline.color, size = 8, fontface = txt.face) +
+  coord_cartesian(ylim = c(0,1.25))+
+  scale_y_continuous(breaks = c(0, 0.5, 1), labels = c('0.0', '0.5', '1.0'))+
+  labs(title = "", x = "", y = "Temporal Clustering")+
+  theme(legend.position = 'none') +
+  theme.esKnow 
+
+esKnow1.temporalClustering_plot
+
+# setwd('../plots_transparentBG/')
+# ggsave("esKnow1_tempotalClustering.png", plot = esKnow1.temporalClustering_plot, width = 4, height = 4, bg = "transparent")
+
+# setwd('../plots/')
+# ggsave("esKnow1_figureS3.pdf", plot = esKnow1.temporalClustering_plot, width = 6, height = 4, device = cairo_pdf)
+# pdf_convert(pdf = "esKnow1_figureS3.pdf", format = "png", dpi = 300,
+#             filenames = "esKnow1_figureS3.png")
+
+```
+
+Clean data for esKnow 2
+
+
+```{r inspectData_esKnow12_peakiness}
+esKnow.combined.bpTime <- rbind(esKnow1.segmentdata %>% dplyr::select(subid, grain, movName, bpTime.series, condition) %>% dplyr::mutate(exp = factor("esKnow1")), esKnow2.segmentdata %>% dplyr::select(subid, grain, movName, bpTime.series, condition) %>% dplyr::mutate(exp = factor("esKnow2")))
+
+peakiness <- data.frame()
+for(movieName in unique(esKnow.combined.bpTime$movName)){
+  for(segGrain in unique(esKnow.combined.bpTime$grain)){
+    for(expNo in unique(esKnow.combined.bpTime$exp)){
+      for(cond in unique(esKnow.combined.bpTime$condition)){
+        if(movieName == "3Iron"){mov.dur = iron.mov.dur}else{mov.dur = corn.mov.dur}
+        if(segGrain == "c"){adj.size = c.adj}else{adj.size = f.adj}
+        dat <- esKnow.combined.bpTime %>% dplyr::filter(movName == movieName, grain == segGrain, exp == expNo, condition == cond)
+        pk <- get.peakiness(dat$bpTime.series, mov.dur, dat$subid, adj.size)
+        peakiness <- rbind(peakiness, data.frame(exp = expNo, movName = movieName, grain = segGrain, condition = cond, min_rugo = pk[1], act.rugo = pk[2], peakiness = pk[3]))
+      }
+    }
+  }
+}
+
+```
+
+Calculate random peakiness for esKnow 1
+```{r inspectData_esKnow1_calculateRandomPeakiness}
+# n.iter = 1000
+# random.peakiness <- data.frame()
+# 
+# for (i in seq(1,n.iter,1)){
+#   for (movieName in unique(esKnow1.segmentdata$movName)){
+#     if(movieName == "3Iron"){
+#       mov.dur = iron.mov.dur
+#     }else{
+#       mov.dur = corn.mov.dur
+#     }
+#     dat <- esKnow1.segmentdata[esKnow1.segmentdata$movName == movieName,]
+#     rand.bp <- data.frame(subid = dat$subid, 
+#                          condition = dat$condition,
+#                          grain = dat$grain,
+#                          movName = movieName,
+#                          iteration = i,
+#                          bpTime.series = unlist(tapply(dat$bpTime.series, list(dat$subid,
+#                                                                                dat$condition,
+#                                                                                dat$grain),
+#                                                        function(x){
+#                                                          runif(length(x), min = 0, max = mov.dur)
+#                                                          })))
+#     for (grain in unique(rand.bp$grain)){
+#       if(grain == 'c'){
+#         adj.size = .1
+#       } else {
+#         adj.size = .05
+#       }
+#       dat.grain <- rand.bp[rand.bp$grain == grain,]
+#       random.peakiness <- rbind(random.peakiness, dat.grain %>% dplyr::group_by(condition, grain, movName, iteration) %>% dplyr::summarise(pk = get.peakiness(bpTime.series, mov.dur, subid, adj.size)) %>% mutate(type = c('min_peakiness', 'max_peakiness', 'peakiness')) %>% spread(type, pk))
+#     }
+#   }
+# }
+# 
+# #save
+# write.csv(random.peakiness, "../data/esKnow1_randomPeakiness.csv", row.names = FALSE)
+
+#Load saved peakiness derived from randomly sampling segmentation data 1000 times
+random.peakiness <- read.csv("../data/esKnow1_randomPeakiness.csv", head = TRUE)
+
+#calculate 95% CI for each values 
+peakiness.CI <- random.peakiness %>% dplyr::group_by(condition, movName, grain) %>% dplyr::summarise(mean = mean(peakiness),CI = quantile(peakiness, probs= c(.025, .975))) %>% dplyr::mutate(level = c("lower", "upper")) %>% spread(level, CI)
+
+```
+
+```{r inspectData_esKnow2_calculateRandomPeakiness}
+# n.iter = 1000
+# random.peakiness.esKnow2 <- data.frame()
+# 
+# for (i in seq(1,n.iter,1)){
+#   #print(i)
+#   for (movieName in unique(esKnow2.segmentdata$movName)){
+#     if(movieName == "3Iron"){
+#       mov.dur = iron.mov.dur
+#     }else{
+#       mov.dur = corn.mov.dur
+#     }
+#     dat <- esKnow2.segmentdata[esKnow2.segmentdata$movName == movieName,]
+#     rand.bp <- data.frame(subid = dat$subid, 
+#                          condition = dat$condition,
+#                          grain = dat$grain,
+#                          movName = movieName,
+#                          iteration = i,
+#                          bpTime.series = unlist(tapply(dat$bpTime.series, list(dat$subid,
+#                                                                                dat$condition,
+#                                                                                dat$grain),
+#                                                        function(x){
+#                                                          runif(length(x), min = 0, max = mov.dur)
+#                                                          })))
+#     for (grain in unique(rand.bp$grain)){
+#       if(grain == 'c'){
+#         adj.size = .1
+#       } else {
+#         adj.size = .05
+#       }
+#       dat.grain <- rand.bp[rand.bp$grain == grain,]
+#       random.peakiness.esKnow2 <- rbind(random.peakiness.esKnow2, dat.grain %>% dplyr::group_by(condition, grain, movName, iteration) %>% dplyr::summarise(pk = get.peakiness(bpTime.series, mov.dur, subid, adj.size)) %>% mutate(type = c('min_peakiness', 'max_peakiness', 'peakiness')) %>% spread(type, pk))
+#     }
+#   }
+# }
+# #save 
+# write.csv(random.peakiness.esKnow2, "../data/esKnow2_randomPeakiness.csv", row.names = FALSE)
+
+#Load saved peakiness derived from randomly sampling segmentation data 1000 times
+random.peakiness.esKnow2 <- read.csv("../data/esKnow2_randomPeakiness.csv", head = TRUE)
+
+#calculate 95% CI for each values 
+peakiness.CI.esKnow2 <- random.peakiness.esKnow2 %>% dplyr::group_by(condition, movName, grain) %>% dplyr::summarise(mean = mean(peakiness),CI = quantile(peakiness, probs= c(.025, .975))) %>% dplyr::mutate(level = c("lower", "upper")) %>% spread(level, CI)
+
+#combine random peakiness from esKnow1 and 2
+peakiness.CI$exp <- "esKnow1"
+peakiness.CI.esKnow2$exp <- "esKnow2"
+peakiness.CI.combined <- rbind(peakiness.CI, peakiness.CI.esKnow2)
+peakiness.CI.combined$exp <- factor(peakiness.CI.combined$exp, level = c("esKnow1", "esKnow2"))
+
+```
+
+```{r plot_esKnow2_peakiness}
+esKnow2.peakiness <- ggplot(peakiness.CI.esKnow2, aes(x = condition, y = mean, color = condition, fill = condition,exp))+
+  geom_errorbar(aes(ymin = lower, ymax = upper), color = outline.color, width = errorbar.width, position=position_dodge(0.5), size = errorbar.size)+
+  geom_point(size = point.size, shape = point.shape, color = outline.color, stroke = point.stroke, legend = FALSE, position = position_dodge(0.5))+
+  geom_point(data = peakiness[peakiness$exp == "esKnow2",], aes(x = condition, y = peakiness, color = condition), position = position_dodge(0.5), shape = 23, size = point.size, stroke = point.stroke)+
+  scale_fill_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_color_manual(values = colors$point.colors[4:6], labels = NULL, guide = "none")+
+  scale_x_discrete(labels=c("U", "I", "J"))+
+  facet_grid(movName~grain, scales = "fixed", labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine"),
+                                                                    movName = c("3Iron" = "3Iron", "Corn" = "Corn")))+
+  coord_cartesian(ylim = c(0, 11))+
+  labs(y = "Peakiness", x = "", caption = "Individual diamonds = random peakiness")+
+  theme.esKnow
+
+esKnow2.peakiness
+
+# setwd('../plots/')
+# ggsave("esKnow12_Peakiness_figureS4.pdf", plot = esKnow2.peakiness, width = 6, height = 4, device = cairo_pdf)
+# pdf_convert(pdf = "esKnow12_Peakiness_figureS4.pdf", format = "png", dpi = 300,
+#             filenames = "esKnow12_Peakiness_figureS4.png")
+```
+Peakiness for uninterrupted group's coarse segmentation in esKnow2 seems to overlap with random peakiness. 
+
+**Compare agreement index across experiments** 
+
+```{r inspectData_esKnow12_calculateAgreementIndex}
+crossExp.agreement.index <- data.frame()
+experiments = c("esKnow1.segmentdata", "esKnow2.segmentdata")
+for(exp in experiments){
+  data <- get(exp)
+  crossData <- get(experiments[experiments!= exp])
+  for(cond in unique(esKnow2.segmentdata$condition)){
+    for (segGrain in unique(esKnow2.segmentdata$grain)){
+      for (movieName in unique(esKnow2.segmentdata$movName)){
+        dat <- data[data$condition == cond & data$grain == segGrain & data$movName == movieName,]
+        crossdat <- crossData[crossData$condition == cond & crossData$grain == segGrain & crossData$movName == movieName,]
+      
+        if(movieName == "3Iron"){
+          mov.dur = iron.mov.dur
+        } else {mov.dur = corn.mov.dur}
+      
+        #define timeseries
+        timeseries <- seq(from = 1, to = mov.dur, by = bin.size)
+      
+        for(sub in unique(dat$subid)){
+          sub.ts <- as.numeric(timeseries %in% floor(dat$bpTime.series[dat$subid == sub]))
+          
+          gp.timeseries <- unlist(tapply(dat$bpTime.series[dat$subid != sub], dat$subid[dat$subid!=sub], function(x){return(as.numeric(timeseries %in% floor(x)))}))
+          gp.ts <- tapply(gp.timeseries, rep(timeseries, length(unique(dat$subid))-1), mean)
+          
+          crossgp.timeseries <- unlist(tapply(crossdat$bpTime.series, crossdat$subid, function(x){return(as.numeric(timeseries %in% floor(x)))}))
+          crossgp.ts <- tapply(crossgp.timeseries, rep(timeseries, length(unique(crossdat$subid))), mean)
+          
+          comparisons <- c(substr(exp, 1,7), substr(experiments[experiments!=exp], 1,7))
+          agreements <- rbind(get.agreement.index(sub.ts, gp.ts), get.agreement.index(sub.ts, crossgp.ts))
+          
+          crossExp.agreement.index <- rbind(crossExp.agreement.index, data.frame(subid = rep(sub, length(comparisons)),
+                                                                               condition = factor(rep(cond, length(comparisons)), levels = condition.factor),
+                                                                               movName = factor(rep(movieName, length(comparisons)), levels = movie.factor),
+                                                                               grain = factor(rep(segGrain, length(comparisons)), levels = grain.factor),
+                                                                               exp = factor(substr(exp, 1, 7), levels = c("esKnow1", "esKnow2")),
+                                                                               testExp = factor(comparisons, levels = c("esKnow1", "esKnow2")),
+                                                                               testType = factor(c("same", "different"), levels = c("same", "different")),
+                                                                               min_corr = agreements[,1],
+                                                                               max_corr = agreements[,2],
+                                                                               act_corr = agreements[,3],
+                                                                               agreementIndex = agreements[,4]))
+        }
+      }
+    }
+  }
+}
+
+
+```
+
+```{r plot_esKnow12_agreementIndex}
+crossExp.colors = c(colors$point.colors[1], colors$point.colors[2], colors$point.colors[3], colors$point.colors[1],
+                    colors$point.colors[2], colors$point.colors[3], colors$point.colors[4], colors$point.colors[5],
+                    colors$point.colors[6], colors$point.colors[4], colors$point.colors[5], colors$point.colors[6])
+
+crossExp.agreement_plot <- ggplot(crossExp.agreement.index[crossExp.agreement.index$testType == "same",], aes(x = condition, y = agreementIndex, fill = interaction(condition, exp), color = interaction(condition,exp)))+
+  geom_jitter(alpha = jitter.alpha, position = position_jitterdodge(.8), size = jitter.size, shape = point.shape, color = jitter.outline)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width + .2, color = outline.color, alpha = errorbar.alpha, position =position_dodge(0.6), size = 1) +
+  geom_point(stat = "summary", fun = "mean", size = point.size-1, shape = 21, color = outline.color, position = position_dodge(0.6), stroke = 1.2)+
+  #geom_signif()+
+  scale_fill_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_color_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_x_discrete(labels=c("U", "I", "J"))+
+  scale_y_continuous(breaks = c(0, .5, 1), labels = c("0.0", '0.5', '1.0'))+
+  facet_grid(~grain, scales = "fixed", labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine")))+
+  coord_cartesian(ylim=c(0, 1))+
+  labs(y = "Agreement index", x = "", caption = "Dark color = esKnow1, Light color = esKnow2") + 
+  theme.esKnow
+
+crossExp.agreement_plot
+
+setwd('../plots/')
+# ggsave("esKnow2_crossExpAgreement_figureS4.pdf", plot = crossExp.agreement_plot, width = 6, height = 4, device = cairo_pdf)
+# pdf_convert(pdf = "esKnow2_crossExpAgreement_figureS4.pdf", format = "png", dpi = 300, 
+#             filenames = "esKnow2_crossExpAgreement_figureS4.png")
+
+
+```
+
+```{r buildModel_esKnow12_agreemnetIndex}
+crossExp.lmer <- lmer(agreementIndex~exp*grain*condition + movName + (condition|subid), data = crossExp.agreement.index[crossExp.agreement.index$testType == 'same',])
+joint_tests(crossExp.lmer)
+eta_squared(crossExp.lmer)
+
+summary(emmeans(crossExp.lmer, "exp", contr = "pairwise", weights = "proportional", adjust = "holm")$contrast, infer = TRUE)
+
+summary(emmeans(crossExp.lmer, "exp", by = c("condition", "grain"), contr = "pairwise", weights = "proportional", adjust = "holm")$contrast, infer = TRUE)
+```
+
+Peakiness suggest that segmentation performance for Uninterrupted is comparable across experiments. 
+
+Segmentation data for esKnow2 Uninterrupted coarse segmentation does not seem to be better than random performance. So we'll use Uninterrupted data from exp 1 to evaluate esKnow2 Interrupted and Jumbled performance 
+
+Switch Uninterrupted data of esKnow2.segmentdata with esKnow 1
+```{r dataCleanup_esKnow2_switchUninterrupted}
+esKnow2.segmentdata <- esKnow2.segmentdata %>% dplyr::filter(condition != "Uninterrupted")
+esKnow2.segmentdata <- rbind(esKnow2.segmentdata, esKnow1.segmentdata[esKnow1.segmentdata$condition == "Uninterrupted" & esKnow1.segmentdata$grainorder == 1,] %>% dplyr::select(subid, condition, grain, movName, clipNo, bpTime.series))
+```
+
+## Evaluate segmentation performance for esKnow2.
+
+### Segmentation rate
+
+```{r calculate_esKnow2_bpRate}
+#calculate button press rate for esKnow 2
+esKnow2.bp <- esKnow2.segmentdata %>% dplyr::group_by(condition, movName, grain, subid) %>% 
+  dplyr::summarise(n.bp = length(bpTime.series))
+
+#Calculate the rate of button press per minute for each movie 
+for (i in 1:nrow(esKnow2.bp)){
+  if(esKnow2.bp$movName[i] == "3Iron"){
+    esKnow2.bp$bpRate[i] <- esKnow2.bp$n.bp[i]/(iron.mov.dur/60)
+  } else if (esKnow2.bp$movName[i] == "Corn"){
+    esKnow2.bp$bpRate[i] <- esKnow2.bp$n.bp[i]/(corn.mov.dur/60)
+  }
+}
+
+```
+
+
+```{r buildModel_esKnow2_bpRate}
+esKnow2.bpRate.lmer <- lmer(bpRate~condition*grain + movName + (1|subid), data = esKnow2.bp)
+esKnow2.bpRate.lmer.B <- lmer(bpRate~condition*grain*movName + (1|subid), data = esKnow2.bp)
+
+anova(esKnow2.bpRate.lmer, esKnow2.bpRate.lmer.B)
+
+joint_tests(esKnow2.bpRate.lmer)
+eta_squared(esKnow2.bpRate.lmer, partial = TRUE)
+
+```
+Adding grain and movie name as interaction terms did not improve model fit, so use the simpler model. 
+
+```{r compareMeans_esKnow_bpRate}
+summary(emmeans(esKnow2.bpRate.lmer, "condition", by = c("grain"), contr = "pairwise", weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+```
+
+```{r plot_esKnow2_bpRate}
+#create dataframes to plot line segments and annotations 
+# esKnow2.bpRate_plot_ann <- data.frame(xstart = c(1,2,1,2), xend = c(3,3,3,3),
+#                                       ystart = c(33,29,33,29), yend = c(33,29,33,29),
+#                                       x = c(2,2.5,2,2.5), y = c(33.7, 29.7, 33.7, 29.7),
+#                                       label = c("*", "*", "***", "***"),
+#                                       grain = c("c", "c", "f", "f"))
+
+#Legend if using esKnow2 data
+esKnow2.bpRate_plot_ann <- data.frame(xstart = c(1,2), xend = c(3,3),
+                                      ystart = c(33,29), yend = c(33,29),
+                                      x = c(2,2.5), y = c( 33.7, 29.7),
+                                      label = c("***", "***"),
+                                      grain = c("f", "f"))
+
+
+esKnow2.bpRate_plot <- ggplot(esKnow2.bp, aes(x = condition, y = bpRate, fill = condition, color = condition))+
+  geom_jitter(width = jitter.width, alpha = jitter.alpha - .2, shape = point.shape, color = jitter.outline, size = jitter.size)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width+.2, color = outline.color, alpha = errorbar.alpha, size = errorbar.size)+
+  geom_point(stat = "summary", fun = "mean", size = point.size-1, shape = point.shape, color = outline.color, stroke = point.stroke, legend = FALSE)+
+  #geom_signif()+
+  scale_fill_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_color_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_x_discrete(labels=c("U\n(Exp1)", "I", "J"))+ #"U\n(Exp1)"
+  geom_segment(data = esKnow2.bpRate_plot_ann, aes(x = xstart, y = ystart, xend = xend, yend = yend), inherit.aes = FALSE, color = outline.color, size = 1) +
+  geom_text(data = esKnow2.bpRate_plot_ann, aes(x = x, y = y, label = label), inherit.aes = FALSE, color = outline.color, size = 8, fontface = txt.face) +
+  facet_wrap(~grain, scales = "fixed", labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine")))+
+  coord_cartesian(ylim=c(0, 40))+
+  labs(y = "Button press per minute", x = "") + 
+  theme.esKnow 
+
+esKnow2.bpRate_plot
+
+```
+Higher button press rates for fine segmentation in Jumbled condition. 
+
+**Hierarchical organization of events** 
+Because segmentation grain was a between group manipulation, hierarchical agreement would need to be examined by making group level comparison. 
+Using Khena's approach for hierarchical organization action within goal changes, each coarse grain segmentation will be compared to the normative fine boundaries. 
+
+
+Function to get normative boundaries 
+```{r calculate_esKnow2_normativeBoundaries}
+get.normativeBounds <- function(sample, sub, mov.dur, adj.size, bw = 'SJ', dens.hz = 1){
+  #create temporary density distribution to get bandwidth of sample1 density distribution  
+  temp <- density(sample, bw = bw, adjust = adj.size, kernel = 'g', n = ceiling(mov.dur*dens.hz), from = 1/dens.hz, to = mov.dur)
+  
+  #add padding to time series 
+  pad.ts <- ceiling(temp$bw * 2)
+  
+  sample.dens <- density(sample, bw = bw, adjust = adj.size, kernel = 'g', n = ceiling((mov.dur+2*pad.ts)*dens.hz), from = 1/dens.hz - pad.ts, to = mov.dur + pad.ts)
+  
+  #put values into dataframe for easy access 
+  sample.dens.df <- data.frame("Time" = sample.dens$x, "Density" = sample.dens$y, "peak" = 0)
+
+  #Determine peaks and troughs for the density distribution. 
+  #Peak = when density at time t is higher than density at t-1 and t+1. 
+  #Trough = when density at t is lower than density at t-1 and t+1.
+  for (row in seq(from = 2, to = nrow(sample.dens.df)-1, by = 1)){
+    if (sample.dens.df$Density[row] > sample.dens.df$Density[row+1] && sample.dens.df$Density[row] > sample.dens.df$Density[row-1]){
+      sample.dens.df$peak[row] <- 1}
+    else if (sample.dens.df$Density[row] < sample.dens.df$Density[row+1] && sample.dens.df$Density[row] < sample.dens.df$Density[row-1]){
+      sample.dens.df$peak[row] <- -1} 
+  }
+  
+  ##get all peaks
+  sample.peakTimes <- sample.dens.df$Time[sample.dens.df$peak == 1]
+
+  ##calculate the number of normative boundaries (minimum of c(ave number of bp sample1, sample1 number of peaks, sample2 number of peaks))
+  n.norm.bp <- min(c(round(mean(tapply(sample, sub, length))), length(sample.peakTimes)))
+  
+  #Obtain times when peak occurs
+  #Peak times then sorted in ascending order. 
+  sample.normativeTimes <- sort(head(sample.dens.df[order(-sample.dens.df$peak, -sample.dens.df$Density),],n.norm.bp)$Time)
+  return(sample.normativeTimes)
+}
+
+```
+
+```{r calculate_esKnow2_hierarchical}
+esKnow2.alignment = data.frame()
+
+for(movie in unique(esKnow2.segmentdata$movName)){
+  if(movie == '3Iron'){
+    mov.dur = iron.mov.dur
+  }else{
+    mov.dur = corn.mov.dur
+  }
+  for(cond in unique(esKnow2.segmentdata$condition)){
+    coarse.data <- esKnow2.segmentdata[esKnow2.segmentdata$condition == cond & esKnow2.segmentdata$grain == 'c' & esKnow2.segmentdata$movName == movie,]
+    fine.data <- esKnow2.segmentdata[esKnow2.segmentdata$condition == cond & esKnow2.segmentdata$grain == 'f' & esKnow2.segmentdata$movName == movie,]
+    norm_fine_bounds <- get.normativeBounds(fine.data$bpTime.series, fine.data$subid, mov.dur, 0.05)
+    get.alignment <- function(id){
+      coarse.bp <- sort(coarse.data$bpTime.series[coarse.data$subid == id])
+      fine.bp <- norm_fine_bounds
+
+      nearest.fine <- do.call(rbind, foreach(i = coarse.bp) %do% fine.bp[which.min(abs(i-fine.bp))])
+      nearest.fine.sign <- sign(coarse.bp - nearest.fine)
+
+      ##alignment
+      nearest.null <- (diff(fine.bp)/2)^2
+      Ave.Dist <- mean(abs(coarse.bp - nearest.fine))
+      Ave.Dist.null <- ((fine.bp[1]^2)/2 + sum(nearest.null))/fine.bp[length(fine.bp)]
+      alignment.value = Ave.Dist.null - Ave.Dist
+
+      return(data.frame(subid = id, movName = factor(movie, levels = movie.factor), condition = factor(cond, levels = condition.factor), alignment = alignment.value, enclosure = mean((nearest.fine.sign)+1)/2))
+    }
+    esKnow2.alignment <- rbind(esKnow2.alignment, do.call(rbind, lapply(unique(coarse.data$subid), get.alignment)))
+  }
+}
+
+```
+
+
+```{r buildModel_esKnow2_alignment}
+esKnow2.alignment.lmer <- lmer(alignment~condition + movName + (1|subid), data = esKnow2.alignment)
+esKnow2.alignment.lmer.B <- lmer(alignment~condition*movName + (1|subid), data = esKnow2.alignment)
+anova(esKnow2.alignment.lmer, esKnow2.alignment.lmer.B)
+
+joint_tests(esKnow2.alignment.lmer.B)
+eta_squared(esKnow2.alignment.lmer.B, partial = TRUE)
+```
+Check if alignment is greater than 0
+```{r compareMeans_esKnow2_alignment_vs0}
+summary(emmeans(esKnow2.alignment.lmer, "condition",weights = "proportional"), infer=TRUE)
+```
+
+```{r compareMeans_esKnow2_alignment_condition}
+summary(emmeans(esKnow2.alignment.lmer.B, "condition", by = "movName", contr = "pairwise", weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+```
+
+
+```{r buildModel_esKnow2_enclosure}
+esKnow2.enclosure.lmer <- lmer(enclosure~condition + movName + (1|subid), data = esKnow2.alignment)
+esKnow2.enclosure.lmer.B <- lmer(enclosure~condition*movName + (1|subid), data = esKnow2.alignment)
+anova(esKnow2.enclosure.lmer, esKnow2.enclosure.lmer.B)
+
+joint_tests(esKnow2.enclosure.lmer)
+eta_squared(esKnow2.enclosure.lmer, partial = TRUE)
+```
+Check if alignment is greater than 0
+```{r compareMeans_esKnow2_enclosure_vsO}
+summary(emmeans(esKnow2.enclosure.lmer, "condition", null = 0.5), infer=TRUE)
+```
+Alignment score for Jumbled is not better than chance. 
+
+```{r compareMeans_esKnow2_enclosure_conditions}
+summary(emmeans(esKnow2.enclosure.lmer, "condition", contr = "pairwise", weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+
+```
+
+```{r plot_esKnow2_alignment_enclosure}
+###Plot alignment values 
+
+#create dataframe for annotations
+esKnow2.alignment.plot.ann <- data.frame(xstart = c(1,1,1,2), xend = c(3,2,3,3),
+                                         ystart = c(2.3,1.9, 2.3, 1.9), yend = c(2.3, 1.9, 2.3, 1.9),
+                                         x = c(2, 1.5, 2, 2.5), y = c(2.45,1.97, 2.37, 1.97),
+                                         label = c("~", "*", "***", "**"),
+                                         movName = c("3Iron", "3Iron", "Corn", "Corn"))
+
+esKnow2.alignment.plot <- ggplot(esKnow2.alignment, aes(x = condition, y = alignment, fill = condition, color = condition))+
+  geom_jitter(width = jitter.width, alpha = jitter.alpha - .1, shape = point.shape, color = jitter.outline, size = jitter.size)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width+.2, color = outline.color, alpha = errorbar.alpha, size = errorbar.size)+
+  geom_point(stat = "summary", fun = "mean", size = point.size-1, shape = point.shape, color = outline.color, stroke = point.stroke, legend = FALSE)+
+  #geom_signif()+
+  scale_fill_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_color_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_x_discrete(labels=c("U\n(Exp1)", "I", "J"))+
+  geom_segment(data = esKnow2.alignment.plot.ann, aes(x = xstart, y = ystart, xend = xend, yend = yend),
+                color = outline.color, size = 1, inherit.aes = FALSE)+
+  geom_text(data = esKnow2.alignment.plot.ann, aes(x = x, y = y, label = label), color = outline.color, size = 8, fontface = txt.face, inherit.aes = FALSE)+
+  facet_wrap(~movName, scales = "fixed", labeller = labeller(movName = c("3Iron" = "3Iron", "Corn" = "Corn")))+
+  # coord_cartesian(ylim=c(-1, 2.5))+
+  labs(y = "Exp-Obs Distance (s)", x = "", title = "")+
+  theme.esKnow 
+
+# esKnow2.alignment.plot <- ggplot(esKnow2.alignment, aes(condition, alignment, fill = condition, color = condition))+
+#   geom_jitter(width = jitter.width, alpha = jitter.alpha-.2,  show.legend = FALSE, shape = point.shape, color = jitter.outline, size = jitter.size)+
+#   stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width+.2, color = outline.color, alpha = errorbar.alpha, size = errorbar.size)+
+#   geom_point(stat = "summary", fun = "mean", size = point.size-1, alpha = point.alpha, shape = point.shape, color = outline.color, stroke = point.stroke, show.lengend = FALSE)+
+#   scale_fill_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+#   scale_color_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+#   # geom_segment(data = esKnow2.alignment.plot.ann, aes(x = xstart, y = ystart, xend = xend, yend = yend),
+#   #              color = outline.color, size = 1, inherit.aes = FALSE)+
+#   # geom_text(data = esKnow2.alignment.plot.ann, aes(x = x, y = y, label = label), color = outline.color, size = 8, fontface = txt.face, inherit.aes = FALSE)+
+#   # geom_segment(aes(x = 1, y = 1.9, xend = 2, yend = 1.9), color = outline.color, size = 0.5) +
+#   # annotate("text", x = 1.5, y = 1.97, label = "***", color = outline.color, size = 8, fontface = txt.face) +
+#   # geom_segment(aes(x = 1, y = 2.3, xend = 3, yend = 2.3), color = outline.color, size = 0.5) +
+#   # annotate("text", x = 2, y = 2.37, label = "***", color = outline.color, size = 8, fontface = txt.face) +
+#   scale_x_discrete(labels=c("U\n(Exp1)", "I", "J"))+
+#   #coord_cartesian(ylim = c(-1, 2.5))+
+#   labs(y = "Expected-Observed (s)", x = "", title = "")+
+#   facet_wrap(~movName, scales = "fixed", labeller = )+
+#   theme.esKnow
+
+esKnow2.alignment.plot
+
+
+esKnow2.enclosure.plot.ann <- data.frame(xstart = c(1), xend = c(3),
+                                         ystart = c(1.2), yend = c(1.2),
+                                         x = c(2), y = c(1.3),
+                                         label = c("~"))
+
+esKnow2.enclosure.plot <- ggplot(esKnow2.alignment, aes(condition, enclosure, fill = condition, color = condition))+
+                                  geom_jitter(width = jitter.width, alpha = jitter.alpha-0.2, show.legend = FALSE, shape = point.shape, color = jitter.outline, size = jitter.size)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width+.1, color = outline.color, size = errorbar.size)+
+  geom_point(stat = "summary", fun = "mean", size = point.size-1, alpha = point.alpha, shape = point.shape, color = outline.color, stroke = point.stroke, show.lengend = FALSE)+
+  scale_fill_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_color_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  geom_segment(data = esKnow2.enclosure.plot.ann, aes(x = xstart, y = ystart, xend = xend, yend = yend),
+               color = outline.color, size = 1, inherit.aes = FALSE)+
+  geom_text(data = esKnow2.enclosure.plot.ann, aes(x = x, y = y, label = label), 
+            color = outline.color, size = 8, fontface = txt.face, inherit.aes = FALSE)+
+  scale_x_discrete(labels=c("U\n(Exp1)", "I", "J"))+
+  scale_y_continuous(breaks = c(0, 0.5, 1), labels = c('0.0', '0.5', '1.0')) +
+  coord_cartesian(ylim = c(0,1.3)) +
+  #geom_segment(aes(x = 1, y = 1.1, xend = 2, yend = 1.1), color = outline.color, size = 0.5) +
+  annotate("text", x = 3, y = 0.85, label = "n.s.", color = outline.color, size = 5, fontface = txt.face) +
+  labs(x = "", y = "Enclosure ", title = "")+
+  theme.esKnow
+
+esKnow2.enclosure.plot
+
+
+
+```
+
+
+**Agreement index**
+
+```{r calculate_esKnow2_AgreementIndex}
+esKnow2.agreement.index <- data.frame()
+for(cond in unique(esKnow2.segmentdata$condition)){
+  for(movieName in unique(esKnow2.segmentdata$movName)){
+    if(movieName == "3Iron"){
+      mov.dur = iron.mov.dur
+    }else{
+      mov.dur = corn.mov.dur
+    }
+    for(segmentGrain in unique(esKnow2.segmentdata$grain)){
+      dat <- esKnow2.segmentdata[esKnow2.segmentdata$condition == cond & esKnow2.segmentdata$movName == movieName & esKnow2.segmentdata$grain == segmentGrain,]
+      for(sub in unique(dat$subid)){
+        sub.bp <- dat$bpTime.series[dat$subid == sub]
+        gp.bp <- dat$bpTime.series[dat$subid != sub]
+        
+        #get subject bp timeseries
+        timeseries <- seq(from = 0, to = mov.dur-1, by = 1)
+        sub.ts <- as.numeric(timeseries %in% floor(sub.bp))
+        sub.rand.ts <- sample(sub.ts)
+        
+        #get group bp timeseries
+        gp.timeseries <- unlist(tapply(gp.bp, dat$subid[dat$subid!=sub], function(x){return(as.numeric(timeseries %in% floor(x)))}))
+        gp.ts <- tapply(gp.timeseries, rep(timeseries, length(unique(dat$subid))-1), mean)
+        
+        #get random timeseries
+        rand.subjects <- rep(sample(length(unique(dat$subid))-1), each = length(timeseries))
+        random.timeseries <- c()
+        for (s in unique(rand.subjects)){
+          random.timeseries <- c(random.timeseries, sample(gp.timeseries[rand.subjects == s]))
+        }
+        #random.timeseries <- unlist(tapply(gp.timeseries, rep(sample(length(unique(dat$subid))-1), each = length(timeseries)), sample))
+        random.ts <- tapply(random.timeseries, rep(timeseries, length(unique(dat$subid))-1), mean)
+        
+        comparisons <- c(cond, "random", cond)
+        agreements <- rbind(get.agreement.index(sub.ts, gp.ts), get.agreement.index(sub.ts, random.ts), get.agreement.index(sub.rand.ts, gp.ts))
+        
+        for(crossCond in unique(esKnow2.segmentdata$condition)[unique(esKnow2.segmentdata$condition)!= cond]){
+          crossdat <- esKnow2.segmentdata[esKnow2.segmentdata$condition == crossCond & esKnow2.segmentdata$movName == movieName & esKnow2.segmentdata$grain == segmentGrain,]
+          crossgp.bp <- crossdat$bpTime.series
+          crossgp.timeseries <- unlist(tapply(crossgp.bp, crossdat$subid, function(x){return(as.numeric(timeseries %in% floor(x)))}))
+          crossgp.ts <- tapply(crossgp.timeseries, rep(timeseries, length(unique(crossdat$subid))), mean)
+          comparisons <- c(comparisons, crossCond)
+          agreements <- rbind(agreements, get.agreement.index(sub.ts, crossgp.ts))
+        }
+        
+        comp_types <- c("same", "random", "randomSub", "crossCond", "crossCond")
+        
+        esKnow2.agreement.index <- rbind(esKnow2.agreement.index, data.frame(subid = rep(sub, length(comparisons)),
+                                               indiv_cond = factor(rep(cond, length(comparisons)), levels = condition.factor),
+                                               movName = rep(movieName, length(comparisons)),
+                                               grain = factor(rep(segmentGrain, length(comparisons)), levels = grain.factor),
+                                               group_cond = factor(comparisons, levels = c(condition.factor, "random")),
+                                               testCond_type = factor(comp_types),
+                                               min_corr = agreements[,1],
+                                               max_corr = agreements[,2],
+                                               act_corr = agreements[,3],
+                                               agreementIndex = agreements[,4]))
+      }
+    }
+  }
+}
+
+```
+
+Compare individuals across all conditions when compared to uninterrupted group. 
+```{r buildModels_esKnow2_agreementIndex_1}
+#test for (1)
+esKnow2.agreement.withU <- esKnow2.agreement.index %>% dplyr::filter(group_cond == "Uninterrupted", testCond_type != "randomSub") %>%  droplevels()
+esKnow2.agreement.withU.lmer <- lmer(agreementIndex~indiv_cond*grain + movName + (1|subid), data = esKnow2.agreement.withU)
+esKnow2.agreement.withU.lmer.B <- lmer(agreementIndex~indiv_cond*grain*movName + (1|subid), data = esKnow2.agreement.withU)
+anova(esKnow2.agreement.withU.lmer, esKnow2.agreement.withU.lmer.B)
+
+joint_tests(esKnow2.agreement.withU.lmer)
+eta_squared(esKnow2.agreement.withU.lmer)
+
+summary(emmeans(esKnow2.agreement.withU.lmer, "indiv_cond", by = "grain"))
+
+summary(emmeans(esKnow2.agreement.withU.lmer, "indiv_cond", by = "grain", contr = list(UvsI = c(1, -1,0),
+                                                                           UvsJ = c(1, 0, -1)), weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+
+summary(emmeans(esKnow2.agreement.withU.lmer, c("indiv_cond", "grain"), contr = list(UvsI = c(1, -1,0, -1, 1, 0),
+                                                                           UvsJ = c(1, 0, -1, -1, 0 , 1)), weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+
+summary(emmeans(esKnow2.agreement.withU.lmer, c("indiv_cond", "grain")))
+
+```
+There is a main effect of individual condition on agreement index, suggesting that when compared to Uninterrupted group, Interrupted or Jumbled individuals performed differently to uninterrupted individuals (as measured by agreement index). Post hoc test revealed that agreement index was lower for both fine and coarse segmentation for jumbled participants but only in fine segmentation for interrupted participants.
+
+
+Plot segmentation agreement of different individual conditions compared to uninterrupted group 
+```{r plot_esKnow2_agreementIndex_IndivVSUgroup}
+#create dataframes to plot line segments and annotations 
+ann_line<-data.frame(xStart=c(1,1),xEnd= c(2,3), yStart=c(.75,.9),yEnd=c(.75,.9),
+    grain=factor(c("c", "c"),levels=grain.factor))
+ann_text<-data.frame(x=c(1.5,2), y=c(.775,.925),
+    text = c("***", "**"),
+    grain=factor(c("c", "c"),levels=grain.factor))
+
+esKnow2.agreementIndex_indivVSUgroup_plot <- ggplot(esKnow2.agreement.withU, aes(x = indiv_cond, y = agreementIndex, fill = indiv_cond, color = indiv_cond))+
+  geom_jitter(width = jitter.width, alpha = jitter.alpha-.2, shape = point.shape, color = jitter.outline, size = jitter.size)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width + .1, color = outline.color, alpha = errorbar.alpha, size = errorbar.size)+
+  geom_point(stat = "summary", fun = "mean", size = point.size-1, shape = point.shape, color = outline.color, stroke = point.stroke, legend = FALSE)+
+  #geom_signif()+
+  scale_fill_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_color_manual(values = colors$point.colors, labels = NULL, guide = "none")+
+  scale_x_discrete(labels=c("U\n(Exp1)", "I", "J"))+ #\n(Exp1)
+  geom_segment(data = ann_line, aes(x = xStart, y = yStart, xend = xEnd, yend = yEnd), color = outline.color, size = 1, inherit.aes = FALSE) +
+  geom_text(data = ann_text, aes(x = x, y = y, label = text), color = outline.color, size = 8, fontface = txt.face, inherit.aes = FALSE) +
+  facet_wrap(~grain, scales = "fixed", labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine")))+
+  coord_cartesian(ylim=c(0, 1))+
+  labs(y = "Agreement Index", x = "Individual") + 
+  theme.esKnow 
+esKnow2.agreementIndex_indivVSUgroup_plot
+
+```
+
+##Create figure for segmentation results from esKnow2 (Figure 4)
+```{r plot_figureS6}
+
+figS6_top <- ggarrange(esKnow2.bpRate_plot, esKnow2.alignment.plot,
+                      labels = c("A", "B"),
+                      ncol = 2, nrow = 1)
+
+figS6_middle <- ggarrange(esKnow2.enclosure.plot, esKnow2.agreementIndex_indivVSUgroup_plot,
+                        labels = c("C", "D"),
+                        widths = c(1, 1.5),
+                        ncol = 2, nrow = 1)
+#fig4_bottom <- ggarrange(esKnow2.coarse.dens, esKnow2.fine.dens,
+#                         nrow = 2, ncol = 1)
+
+figureS6 <- ggarrange(figS6_top, figS6_middle,
+                     labels = c("", ""),
+                     ncol = 1, nrow = 2)
+
+figureS6
+# setwd('../plots/')
+# ggsave("esKnow2_segmentation_figureS6.pdf", plot = figureS6, width = 9, height = 9, device = cairo_pdf)
+# pdf_convert(pdf = "esKnow2_segmentation_figureS6.pdf", format = "png", dpi = 300,
+#             filenames = "esKnow2_segmentation_figureS6.png")
+
+```
+
+**Overall number of events recalled** 
+
+Granularity of segmentation in esKnow2 were performed between subjects. Examine overall recall rate for each segmentation grain. 
+```{r calculate_esKnow2_recallRate}
+#assign segmentation grain condition
+for (i in 1:nrow(esKnow2.recall)){
+  esKnow2.recall$grain[i] <- esKnow2.pseudoIndex$grain[esKnow2.pseudoIndex$newIndex == esKnow2.recall$pseudo_subid[i]]
+}
+esKnow2.recall$grain <- factor(esKnow2.recall$grain, levels = grain.factor)
+
+esKnow2.recallRate <- esKnow2.recall %>% dplyr::group_by(condition, exp_subid, movName, grain, separated) %>% dplyr::summarise(n.events = sum(recall))
+
+for(r in 1:nrow(esKnow2.recallRate)){
+  if(esKnow2.recallRate$movName[r] == "3Iron"){
+    if(esKnow2.recallRate$separated[r]){
+      esKnow2.recallRate$recallRate[r] = esKnow2.recallRate$n.events[r]/length(iron_separated)
+    }else{
+      esKnow2.recallRate$recallRate[r] = esKnow2.recallRate$n.events[r]/(74-length(iron_separated))
+    }
+  }else{
+    if(esKnow2.recallRate$separated[r]){
+      esKnow2.recallRate$recallRate[r] = esKnow2.recallRate$n.events[r]/length(corn_separated)
+    }else{
+      esKnow2.recallRate$recallRate[r] = esKnow2.recallRate$n.events[r]/(69 - length(corn_separated))
+    }
+  }
+}
+
+```
+
+Recall rate divided by grain
+
+```{r buildMode_esKnow2_recallRAte}
+esKnow2.recallRate.grain.lmer <- lmer(recallRate~condition*grain + movName + (1|exp_subid), data = esKnow2.recallRate)
+esKnow2.recallRate.grain.lmer.B <- lmer(recallRate~condition*grain*movName + (1|exp_subid), data = esKnow2.recallRate)
+anova(esKnow2.recallRate.grain.lmer, esKnow2.recallRate.grain.lmer.B)
+joint_tests(esKnow2.recallRate.grain.lmer)
+```
+There is no influence of segmentation grain on recall accuracy. Subsequent analyses will be done collapsed across grain. 
+
+
+```{r compareMeans_esKnow2_recallRate_grain}
+summary(emmeans(esKnow2.recallRate.grain.lmer, "condition", contr = "pairwise", weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+```
+
+```{r plot_esKnow2_recallRate_byGrain}
+esKnow2.recallRate_plot <- ggplot(esKnow2.recallRate, aes(x = condition, y = recallRate, fill = interaction(condition, grain), color = interaction(condition, grain)))+
+  geom_jitter(alpha = .7, position = position_jitterdodge(.8), size = 1.5)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = 0.5, color = outline.color, alpha = errorbar.alpha, position =position_dodge(0.5), size = 1) +
+  geom_point(stat = "summary", fun = "mean", size = 4, shape = 21, color = outline.color, position = position_dodge(0.5), stroke = 1.2) + 
+  scale_fill_manual(values = colors$point.colors)+
+  scale_color_manual(values = colors$point.colors)+
+  scale_x_discrete(labels=c("Uninterrupted" = "U", "Interrupted" = "I",
+                              "Jumbled" = "J"))+
+  #facet_wrap(~grain, scales='fixed', labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine")))+
+  #geom_segment(aes(x = 2, y = 1.05, xend = 3, yend = 1.05), color = outline.color, size = 0.5) +
+  #nnotate("text", x = 2.5, y = 1.08, label = "*", color = outline.color, size = 8) +
+  #geom_segment(aes(x = 1, y = 1.2, xend = 3, yend = 1.2), color = outline.color, size = 0.5) +
+  #annotate("text", x = 2, y = 1.23, label = "***", color = outline.color, size = 8) +
+  coord_cartesian(ylim = c(0,1))+
+  scale_y_continuous(breaks = c(0, 0.5, 1), labels = c('0.0', '0.5', '1.0'))+
+  labs(y = "Recall rate", x = "")+
+  theme(legend.position = 'none') +
+  theme.esKnow 
+
+esKnow2.recallRate_plot
+```
+
+**Recall Time**
+
+
+```{r buildModel_esKnow2_recallTime}
+
+esKnow2.recallTime_rate <- esKnow2.recallTime %>% dplyr::group_by(condition, subid, movName, grain) %>% dplyr::summarise(ave_time = mean(as.numeric(recall_time)/1000, na.rm = TRUE))
+
+esKnow2.recallTime.lmer <- lmer(ave_time~condition + movName + (1|subid), data = esKnow2.recallTime_rate)
+esKnow2.recallTime.lmer.B <- lmer(ave_time~condition*movName + (1|subid), data = esKnow2.recallTime_rate)
+anova(esKnow2.recallTime.lmer, esKnow2.recallTime.lmer.B)
+
+joint_tests(esKnow2.recallTime.lmer)
+```
+
+```{r plot_esKnow2_recallTime}
+
+esKnow2.recallTime_plot <- ggplot(esKnow2.recallTime_rate, aes(x = condition, y = ave_time, fill = condition, color = condition))+
+  geom_jitter(alpha = jitter.alpha-.2, position = position_jitterdodge(.7), size = jitter.size, shape = point.shape, color = jitter.outline)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width, color = outline.color, alpha = errorbar.alpha, position =position_dodge(0.5), size = errorbar.size-.2) +
+  geom_point(stat = "summary", fun = "mean", size = point.size-1, shape = 21, color = outline.color, position = position_dodge(0.5), stroke = point.stroke-.2) + 
+  scale_fill_manual(values = colors$point.colors)+
+  scale_color_manual(values = colors$point.colors)+
+  scale_x_discrete(labels=c("Uninterrupted" = "U", "Interrupted" = "I",
+                              "Jumbled" = "J"))+
+  # geom_segment(aes(x = 2, y = 1.05, xend = 3, yend = 1.05), color = outline.color, size = 0.5) +
+  # annotate("text", x = 2.5, y = 1.08, label = "*", color = outline.color, size = 8) +
+  # geom_segment(aes(x = 1, y = 1.2, xend = 3, yend = 1.2), color = outline.color, size = 0.5) +
+  # annotate("text", x = 2, y = 1.23, label = "***", color = outline.color, size = 8) +
+  coord_cartesian(ylim = c(0,10))+
+  scale_y_continuous(breaks = c(0, 5, 10), labels = c('0', '5', '10'))+
+  labs(y = "Recall time (s)", x = "")+
+  theme(legend.position = 'none') +
+  theme.esKnow 
+
+esKnow2.recallTime_plot
+
+```
+
+**Semantic Clustering**
+
+
+```{r buildModel_esKnow2_semanticClustering}
+esKnow2.semClust.lm <- lm(sem_clustering~condition + movName , data = esKnow2.clustering)
+esKnow2.semClust.lm.B <- lm(sem_clustering~condition*movName , data = esKnow2.clustering)
+anova(esKnow2.semClust.lm, esKnow2.semClust.lm.B)
+joint_tests(esKnow2.semClust.lm)
+```
+
+```{r compareMean_esKnow2_semanticClustering}
+summary(emmeans(esKnow2.semClust.lm, "condition", null = 0.5), infer = TRUE)
+```
+
+```{r plot_esKnow2_semanticClustering}
+esKnow2.semanticClustering_plot <- ggplot(esKnow2.clustering, aes(x = condition, y = sem_clustering, fill = condition, color = condition, grain))+
+  geom_jitter(alpha = jitter.alpha-.2, position = position_jitterdodge(.8), size = jitter.size, shape = point.shape, color = jitter.outline)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = 0.4, color = outline.color, alpha = errorbar.alpha, position =position_dodge(0.5), size = errorbar.size-.2) +
+  geom_point(stat = "summary", fun = "mean", size = point.size-1, shape = 21, color = outline.color, position = position_dodge(0.5), stroke = point.stroke-.2) + 
+  scale_fill_manual(values = colors$point.colors)+
+  scale_color_manual(values = colors$point.colors)+
+  scale_x_discrete(labels=c("Uninterrupted" = "U", "Interrupted" = "I",
+                              "Jumbled" = "J"))+
+  #facet_wrap(~grain, scales='fixed', labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine")))+
+  #geom_segment(aes(x = 2, y = 1.05, xend = 3, yend = 1.05), color = outline.color, size = 0.5) +
+  #nnotate("text", x = 2.5, y = 1.08, label = "*", color = outline.color, size = 8) +
+  #geom_segment(aes(x = 1, y = 1.2, xend = 3, yend = 1.2), color = outline.color, size = 0.5) +
+  #annotate("text", x = 2, y = 1.23, label = "***", color = outline.color, size = 8) +
+  coord_cartesian(ylim = c(0,1))+
+  scale_y_continuous(breaks = c(0, 0.5, 1), labels = c('0.0', '0.5', '1.0'))+
+  labs(y = "Semantic clustering", x = "", title = " ")+
+  theme(legend.position = 'none') +
+  theme.esKnow 
+
+esKnow2.semanticClustering_plot
+```
+
+**Temporal clustering**
+
+```{r buildModel_esKnow2_temporalClustering}
+esKnow2.tempClust.lmer <- lmer(temp_clustering~condition + movName + (1|exp_subid) , data = esKnow2.clustering)
+esKnow2.tempClust.lmer.B <- lmer(temp_clustering~condition*movName + (1|exp_subid) , data = esKnow2.clustering)
+anova(esKnow2.tempClust.lmer, esKnow2.tempClust.lmer.B)
+joint_tests(esKnow2.tempClust.lmer.B)
+eta_squared(esKnow2.tempClust.lmer.B)
+```
+
+```{r compareMeans_esKnow2_temporalClustering}
+summary(emmeans(esKnow2.tempClust.lmer.B, "condition", by = "movName",contr = "pairwise", weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+```
+
+Even though the overall number of events recalled are similar across condition, Jumbled participants have lower temporal clustering score compared to Uninterrupted and Interrupted condition. 
+
+```{r plot_esKnow2_temporalClustering}
+esKnow2.temporalClustering_ann <- data.frame(xstart = c(1,2,2,1), xend = c(3,3,3,2),
+                                             ystart = c(1.23, 1.1, 1.23, 1.1), yend = c(1.23, 1.1, 1.23, 1.1),
+                                             x = c(2,2.5,2.5,1.5), y = c(1.25, 1.13, 1.25, 1.13),
+                                             labels = c('***', '***', '***', '**'),
+                                             movName = c("3Iron", '3Iron', 'Corn', 'Corn')
+                                             )
+
+esKnow2.temporalClustering_plot <- ggplot(esKnow2.clustering, aes(x = condition, y = temp_clustering, fill = condition, color = condition, grain))+
+  geom_jitter(alpha = jitter.alpha - .2, position = position_jitterdodge(.8), size = jitter.size, shape = point.shape, color = jitter.outline)+
+  stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = errorbar.width, color = outline.color, alpha = errorbar.alpha, position =position_dodge(0.5), size = errorbar.size-.2) +
+  geom_point(stat = "summary", fun = "mean", size = point.size-1, shape = 21, color = outline.color, position = position_dodge(0.5), stroke = point.stroke-.2) + 
+  scale_fill_manual(values = colors$point.colors)+
+  scale_color_manual(values = colors$point.colors)+
+  scale_x_discrete(labels=c("Uninterrupted" = "U", "Interrupted" = "I",
+                              "Jumbled" = "J"))+
+  facet_wrap(~grain, scales='fixed', labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine")))+
+  geom_segment(data = esKnow2.temporalClustering_ann, aes(x = xstart, y = ystart, xend = xend, yend = yend),color = outline.color, size = 0.5, inherit.aes = FALSE)+
+  geom_text(data = esKnow2.temporalClustering_ann, aes(x = x, y = y, label = labels), color = outline.color, size = 6, inherit.aes = FALSE)+
+  facet_wrap(~movName)+
+  coord_cartesian(ylim = c(0,1.3), clip = "off")+
+  scale_y_continuous(breaks = c(0, 0.5, 1), labels = c('0.0', '0.5', '1.0'))+
+  labs(y = "Temporal clustering", x = "")+
+  theme(legend.position = 'none') +
+  theme.esKnow 
+
+esKnow2.temporalClustering_plot
+
+# setwd('../plots/')
+# ggsave("esKnow2_temporalClustering_wUninterrupted.pdf", plot = esKnow2.temporalClustering_plot, width = 4, height = 4, device = cairo_pdf)
+# pdf_convert(pdf = "esKnow2_temporalClustering_wUninterrupted.pdf", format = "png", dpi = 300, 
+#             filenames = "esKnow2_tempotalClustering_wUninterrupted.png")
+```
+
+
+**LagCRP**
+
+```{r buildModel_esKnow2_lagCRP}
+lags_to_plot <- c('X.5', 'X.4', 'X.3', 'X.2', 'X.1', 'X0',
+                  'X1', 'X2', 'X3', 'X4', 'X5')
+
+esKnow2.lagCRP_long <- esKnow2.lagCRP %>% gather(lag, prob, -exp_subid, -condition, -pseudo_subid, -movName) 
+esKnow2.lagCRP_long$lag <- as.factor(esKnow2.lagCRP_long$lag)
+
+esKnow2.lagCRP_long <- esKnow2.lagCRP_long[esKnow2.lagCRP_long$lag %in% lags_to_plot, ]
+
+esKnow2.lagCRP_long <- transform(esKnow2.lagCRP_long, lag = factor(lag, levels = lags_to_plot))
+esKnow2.lagCRP_long$prob <- as.numeric(esKnow2.lagCRP_long$prob)
+
+esKnow2.lagCRP.lagDiff.lmer <- lmer(prob ~ lag*condition+movName + (1|exp_subid) , data = esKnow2.lagCRP_long)
+esKnow2.lagCRP.lagDiff.lmer.B <- lmer(prob ~ lag*condition*movName + (1|exp_subid) , data = esKnow2.lagCRP_long)
+anova(esKnow2.lagCRP.lagDiff.lmer, esKnow2.lagCRP.lagDiff.lmer.B)
+joint_tests(esKnow2.lagCRP.lagDiff.lmer.B)
+eta_squared(esKnow2.lagCRP.lagDiff.lmer.B, partial = TRUE)
+```
+
+Compare difference in probability of recall across conditions for each lag 
+```{r compareMeans_esKnow2_lagCRP}
+summary(emmeans(esKnow2.lagCRP.lagDiff.lmer.B, "condition", by = c("lag", "movName"), weights = "proportional", contr = "pairwise", adjust= "holm")$contrasts, infer = TRUE)
+```
+
+```{r compareMeans_esKnow2_lagCRP_bylag}
+emm_options(lmerTest.limit = 3720)
+lag.pairwise.emm <- emmeans(esKnow2.lagCRP.lagDiff.lmer, "condition", by = c("lag"), contr = "pairwise", weights = "proportional", adjust = "holm")
+confint(lag.pairwise.emm, adjust = "holm", level = .95)
+summary(lag.pairwise.emm$contrasts, infer = TRUE)
+
+summary(emmeans(esKnow2.lagCRP.lagDiff.lmer.B, "condition", by = c("lag"), contr = "pairwise", weights = "proportional", adjust = "holm")$contrasts, infer = TRUE)
+```
+Jumbled condition have a stronger tendency for -1 recall transition compared to both uninterrupted and interrupted conditions. There is no effect of condition on probability +1 recall transition. 
+Jumbled condition have a stronger tendency for -1 recall transition compared to both uninterrupted and interrupted conditions. There is no effect of condition on probability +1 recall transition. 
+
+```{r plot_esKnow2_lagCRP}
+
+esKnow2.lagCRP_plot <- esKnow2.lagCRP_long %>% dplyr::group_by(lag, condition, movName) %>% dplyr::summarise(mean.prob = mean(prob), se.prob = sd(prob)/sqrt(n()), n.prob = n()) %>% dplyr::mutate(
+         lower.ci.prob = mean.prob - qt(1 - (0.05 / 2), n.prob - 1) * se.prob,
+         upper.ci.prob = mean.prob + qt(1 - (0.05 / 2), n.prob - 1) * se.prob)
+
+esKnow2_lagCRP_plot <- ggplot(esKnow2.lagCRP_plot, aes(x = lag, y = mean.prob, group = condition, color = condition))+
+    #geom_ribbon(stat = "summary", fun = )
+    geom_ribbon(aes(ymin = mean.prob - lower.ci.prob, ymax = mean.prob + upper.ci.prob, fill = condition), alpha = 0.3, color=NA)+
+    geom_line(size = 1.5)+
+    geom_point( alpha = 1.2, shape = 21, size = point.size-1, stroke = 1.5, show.legend = FALSE, aes(fill = condition))+
+    #stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2, alpha = 1, size = 0.7)+
+    scale_fill_manual(values = colors$point.colors[4:6], labels = c('U', 'I', 'J'))+
+    scale_color_manual(values = colors$point.colors, labels= c('U', 'I', 'J'))+
+    
+    scale_x_discrete(lim = lags_to_plot,
+                  labels = c('-5', '-4', '-3', '-2', '-1', '0', '1', '2', '3', '4', '5'))+
+    coord_cartesian(ylim = c(0,0.4))+
+    facet_wrap(~movName)+
+    #annotate("text", x = 5, y = .35, label = "*", color = outline.color, size = 8, fontface = txt.face) +
+    #annotate("text", x = 7, y = .35, label = "***", color = outline.color, size = 8, fontface = txt.face) +
+    #annotate("text", x = 8, y = .35, label = "*", color = outline.color, size = 8, fontface = txt.face) +
+    #annotate("text", x = 9, y = .35, label = "**", color = outline.color, size = 8, fontface = txt.face) +
+    #annotate("text", x = 10, y = .35, label = "***", color = outline.color, size = 8, fontface = txt.face) +
+    #ylim(0, 0.2)+
+    labs(y = "Conditional probability", x = "Lag")+
+    theme(legend.position = "none")+
+    theme.esKnow
+
+esKnow2_lagCRP_plot
+
+```
+
+There is no difference in pattern of forward recall for all conditions. Jumbled participants have steeper backwards recall curve pattern compared to other conditions. 
+
+
+##Create figure for recall results from esKnow2 (Figure S5)
+```{r plot_figureS5}
+figS7_top <- ggarrange(esKnow2.recallRate_plot, esKnow2.recallTime_plot,
+                      labels = c("A", "B"),
+                      ncol = 2, nrow = 1)
+figs7_middle <- ggarrange(esKnow2.semanticClustering_plot, esKnow2.temporalClustering_plot,
+                      labels = c("C", "D"),
+                      widths = c(1, 2),
+                      ncol = 2, nrow = 1)
+
+figureS7 <- ggarrange(figS7_top, figs7_middle, esKnow2_lagCRP_plot,
+                      labels = c("", "", "E"),
+                      ncol = 1, nrow = 3)
+figureS7
+setwd('../plots/')
+ggsave("esKnow2_figureS7.pdf", plot = figureS7, width = 9, height = 11, device = cairo_pdf)
+pdf_convert(pdf = "esKnow2_figureS7.pdf", format = "png", dpi = 300,
+            filenames = "esKnow2_figureS7.png")
+
+```
+
+Jumbled participants have higher recall precision compared to pariticipants in the interrupted and uninterrupted conditions. This may mean higher level of details are included in Jumbled participants' recall (perhaps increase in response associated with perceptual transient changes during segmentation task result in higher retention of perceptual details). 
+
+<!-- **Connection density** -->
+
+<!-- ```{r} -->
+<!-- ggplot(esKnow2.closenessCentrality, aes(x = condition, y = closenessCentrality, fill = condition, color = condition, grain))+ -->
+<!--   geom_jitter(alpha = .7, position = position_jitterdodge(.8), size = 1.5)+ -->
+<!--   stat_summary(geom = "errorbar", fun.data = "mean_cl_normal", width = 0.4, color = outline.color, alpha = errorbar.alpha, position =position_dodge(0.5), size = 1) + -->
+<!--   geom_point(stat = "summary", fun = "mean", size = 4, shape = 21, color = outline.color, position = position_dodge(0.5), stroke = 1.2) +  -->
+<!--   scale_fill_manual(values = colors$point.colors)+ -->
+<!--   scale_color_manual(values = colors$point.colors)+ -->
+<!--   scale_x_discrete(labels=c("Uninterrupted" = "U", "Interrupted" = "I", -->
+<!--                               "Jumbled" = "J"))+ -->
+<!--   #facet_wrap(~grain, scales='fixed', labeller = labeller(grain = c("c" = "Coarse", "f" = "Fine")))+ -->
+<!--   #geom_segment(aes(x = 2, y = 1.05, xend = 3, yend = 1.05), color = outline.color, size = 0.5) + -->
+<!--   #nnotate("text", x = 2.5, y = 1.08, label = "*", color = outline.color, size = 8) + -->
+<!--   #geom_segment(aes(x = 1, y = 1.2, xend = 3, yend = 1.2), color = outline.color, size = 0.5) + -->
+<!--   #annotate("text", x = 2, y = 1.23, label = "***", color = outline.color, size = 8) + -->
+<!--   coord_cartesian(ylim = c(0,1))+ -->
+<!--   scale_y_continuous(breaks = c(0, 0.5, 1), labels = c('0.0', '0.5', '1.0'))+ -->
+<!--   labs(y = "Cosine similarity", x = "")+ -->
+<!--   theme(legend.position = 'none') + -->
+<!--   theme.esKnow  -->
+
+<!-- esKnow2.closeness.lmer <- lm(closenessCentrality~condition, data = esKnow2.closenessCentrality) -->
+<!-- joint_tests(esKnow2.closeness.lmer) -->
+<!-- ``` -->
+
+## esKnow2 conclusion 
+Disrupting information flow to a greater extent (every 5 seconds) further impairs segmentation, particularly when information cannot be accummulated coherently over time. Participants in the jumbled conditions seem to rely on localized, transient perceptual changes for segmentation and less likely to be segmentation based on movie content. 
+This disruption in information flow also further impairs memory. Although participants in esKnow2 recalled similar overall number of events, the temporal organization of events for Jumbled pariticipants' are severly affected. 
+Overall, just interrupted information flow (Interrupted conditioins) seem to have minimal influence on segmentation and event memory. 
+
+# Overall conclusion
+Overall, this set of findings provide evidence for dissociation between how information are processed for segmentation and formation of event memory and organization. 
+While segmentation realies on information accumulated over short timescales, formation and organization of event memories require accummulation of coherent information over longer timescales. 
+
