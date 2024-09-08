@@ -1,0 +1,189 @@
+﻿startTime,endTime,description,normativeEventNo,clipNo
+0.676,4,man ride in on motorcycle,1,1
+0.676,4,man stop motorcycle engine,1,1
+0.676,4,man parked motorcycle,1,1
+4,6.968,man get off the motorcycle,2,1
+4,6.968,man took off helmet ,2,1
+6.968,8.058,man pull out the motorcycle key out of the keyhole,3,1
+6.968,8.058,man glanced at apartment building,3,1
+8.059,10.773,man store his helmet inside the motorcycle trunk ,3,1
+10.773,11.956,man took out sling bag from the motorcycle trunk ,3,1
+11.956,13.486,man put sling bag over his shoulder,3,1
+13.486,15.524,man took out a toolbox from inside the motorcycle trunk ,4,1
+15.524,16.475,man turn to look at the apartment building ,4,1
+16.475,18.27,man walk towards apartment building ,4,1
+18.27,19.857,man walk up the steps of the entrance of the apartment building,4,1
+18.27,19.857,man enter apartment building,4,1
+19.857,24.998,man walk up the steps of the stairwell,5,1
+24.998,26.755,man saw a takeout menu flyer attached on the apartment door ,5,1
+26.755,28.362,man ripped the takeout flyer off the gray apartment door ,5,1
+28.362,32.804,man pick the lock ,6,1
+32.804,41.654,man breaks in,6,1
+32.804,41.654,man enter the apartment with a flower wreath hung on the door ,6,1
+41.654,43.887,man walks over to the phone on the table,7,1
+43.887,45.878,man pressed a button on the phone to check for voice messages,7,1
+46.941,47.977,man listens to voice messages,7,1
+47.977,50.845,man looks over his shoulder at a family portrait hung on the wall ,8,1
+47.977,50.845,"the family portrait on the wall shows a family of three, mother, father and a young son",8,1
+50.845,56.153,man grabs the shower head and turns the shower tap on ,9,1
+50.845,56.153,man hangs the shower head on the shower hook ,9,1
+56.153,59.634,man drench his body and hair with water to start showering ,10,1
+59.634,66.677,"man shampoo his hair, rubbing his hair with shampoo ",10,separated
+66.677,68.51,man washes the shampoo off his hair with water ,10,2
+68.51,72.457,man enters a bedroom with his hair wet and a towel slung over his shoulder ,11,2
+72.457,76.122,"man reach over to a wooden wardrobe, look inside the wardrobe and started going through the clothes ",12,2
+76.122,76.991,man picked out a couple of clothes hung inside the wardrobe,12,2
+76.991,77.487,man pulled out a gray tank top from inside the wardrobe and held it up ,12,2
+78.716,79.938,man walk into the kitchen and towards the refrigerator,13,2
+79.938,85.324,"man open the refrigerator, look at fridge content ",13,2
+85.324,89.328,man picked up a fruit inside the refrigerator but put it back down ,14,2
+89.328,91.597,man picked a jar of jam and a bag of bread from the refrigerator ,15,2
+91.597,94.141,man closed the refrigerator door and walked away ,16,2
+94.141,95.679,man walk into the living room carrying laundry basket ,17,2
+95.679,96.729,man picking up dirty clothes from the floor,17,2
+96.729,100.336,man  putting dirty clothes into the laundry basket,18,2
+100.336,103.202,man squatting down in the bathroom floor doing laundry ,19,2
+101.73,102.619,man hand washing clothes by scrubbing soap on the dirty laundry ,19,2
+103.206,108.445,man hand washing a bucket of clothes one at a time scrubbing soap on the dirty laundry on the bathroom floor,19,2
+108.445,109.178,man shaking wet laundry ,20,2
+109.178,110.208,man put the wet laundry on the drying rack ,20,2
+110.213,116.282,"man take out another piece of wet washed clothes from the bucket, shake the excess water and hang it to dry on the drying rack ",20,2
+116.282,117.357,man holding up a camera to take a selfie in front of a statue figurine ,21,2
+117.357,119.825,man tilt his head and smile to pose in front of the statue figurine ,22,2
+119.825,122.523,man pressed the shutter button of his digital camera to take a selfie in front of the statue figurine,22,separated
+122.523,122.835,man sitting on sofa flipping through a photo album ,23,3
+122.835,123.967,man sitting on sofa holding the opened photo album and looked up to the window ,23,3
+123.967,125.702,man sitting on sofa closed the photo album and put the photo album down on the couch ,24,3
+125.702,131.133,man got up from the couch and walked over and look out of the balcony,24,3
+131.133,133.143,the family owner of the apartment returns,25,3
+131.133,133.143,mother holding the son's hand walking out of a car towards the apartment ,25,3
+133.143,135.087,the father opening the boot of the car unloading bags ,25,3
+135.087,137.709,The father closed the boot of the car and started walking towards the apartment ,25,3
+137.704,142.087,man riding on a motorcycle outside of a wealthy neighbourhood ,26,3
+142.087,145.251,man stopped at one house with a food takeout menu flyer attached at the front gate ,26,3
+145.251,147.757,man open the front gate of the house and peeked inside ,26,3
+147.757,151.223,man entered the house and closed the front gate ,27,3
+151.223,157.725,"man is inside the second house, he walk into the living room carrying his toolbox",28,3
+157.725,174.541,man peeks inside the different rooms from the living room ,29,3
+174.541,184.445,man open a sliding door and peeked inside ,30,separated
+184.445,187.83,"sitting inside the room is a woman crouching on the floor with a bruised lip, the man did not notice the woman",31,4
+187.83,191.604,man is standing in the kitchen chopping up ingredients to cook a meal,32,4
+187.83,191.604,"woman is leaning on kitchen door, observing man ",33,4
+191.604,195.366,"man cook food, transferring chopped ingredients onto a frying pan on the stove ",34,4
+191.604,199.304,"woman leans against kitchen door, obeserving the man quietly ",34,4
+199.304,210.48,"man sitting on the dining table, eating meal of rice and dishes he just cooked ",35,4
+210.48,214.075,woman sitting on the stairs observing man eating dinner ,35,4
+214.075,217.286,man is having a bath inside the bathtub in bathroom ,36,4
+214.075,217.286,"man having a bath, soaking in bathtub while reading and flipping through a magazine ",36,4
+217.286,218.724,"man wearing towel weighed himself, standing on a weighing scale",37,4
+218.724,222.493,man check his weight on the weighing scale ,37,4
+222.493,226.496,"man is sitting on the floor, taking apart the weighing scale ",38,4
+226.496,236.641,"man sitting on the floor, fixing weighing scale",38,4
+226.496,236.641,"man sitting on the floor, unscrewing parts of the weighing scale ",38,4
+226.496,236.641,"man sitting on the floor, examining parts of the weighing scale ",38,4
+226.496,239.162,woman sit on the dining chair in the background observing the man fixing the weighing scale ,38,4
+239.162,245.272,man checks his weight again after fixing the weighing scale,38,separated
+239.162,245.272,man stepping on the weighing scale ,38,5
+239.162,245.272,man read the weighing scale readout and smile ,38,5
+245.272,247.403,man open a black wardrobe with pearl embellishment on the door ,39,5
+247.403,251.304,man starts searching for clothes inside the wardrobe ,39,5
+251.304,252.981,man pull out a set of pink dress and pink cardigan from the black wardrobe,39,5
+251.304,252.981,man hold up pink dress and pink cardigan ,39,5
+254.787,256.803,man is standing in front of a stereo ,40,5
+254.787,256.803,man pushed a button on the stereo,40,5
+256.803,258.56,man turn to look away from the stereo ,40,5
+258.56,264.923,"woman is taking a bath, sitting inside the bathtub, hugging her knees, crying and sobbing ",41,5
+264.923,267.571,woman sitting inside the bathtub turn her head and look up ,41,5
+267.571,278.546,woman walk out of the bathroom wrapped in a towel and looked around in the living room ,41,5
+278.546,279.642,"a set of pink dress, pink cardigan, and bra laid out on the floor ",41,5
+279.642,280.757,"man sitting on his motorcycle outside of the house gate at night with his helmet on, waiting for the woman ",42,5
+280.757,284.231,"the woman joins the man, hop on the motorcycle, sitting behind the man ",42,5
+284.231,291.109,man started the motorcycle engine and they ride away ,42,5
+291.109,298.132,man and woman ride through a tunnel at night ,43,5
+298.132,301.201,man and woman ride through traffic during the daytime  ,43,separated
+301.201,302.829,woman is sitting on the park hugging her knees looking at man ,44,6
+302.829,310.52,man tethered a golf ball to a tree trunk using a blue wire ,45,6
+310.52,313.339,woman is sitting on the park hugging her knees looking at man ,46,6
+313.339,314.371,man bend the wire of the tethered golf ball to put the golf ball in position ,46,6
+314.371,322.637,man take a swing of the golf club and hit the golf ball ,46,6
+322.637,324.19,a male passerby walking with a woman flinch and covered his face with his hand and look over at the park ,47,6
+324.19,325.273,"the couple passerby stopped, looked towards the direction of the park, the female passerby covering her mouth, then continued walking",47,6
+325.273,329.801,the man reached down to the tethered golf ball and readjust the golf ball position ,48,6
+329.801,332.007,woman sitting on the ground hugging her knees observing the man ,48,6
+332.007,336.065,man take another swing of the golf club and hit the golf ball ,48,6
+336.065,339.311,"man and woman reach a third apartment with a security intercom, the corridor is dark",49,6
+339.311,342.81,man walk toward the door of the third apartment and reach out and rip off takeout menu attached on door. ,49,6
+342.81,343.751,man and woman waiting outside of the third apartment seen from the security intercom monitor ,49,6
+343.751,350.654,"man rung the bell of the third apartment with the intercom and waited for a repsonse, woman waiting behind man",50,6
+350.654,354.389,"man enter the apartment with lots of nude photographs of women, looked inside and walked in ",50,6
+354.389,359.161,man walk towards living room and switched the lights on ,50,6
+359.161,362.458,woman walk inside apartment behind man and closed the door ,50,separated
+362.458,366.064,man opened door to rooms around living room and check inside ,50,7
+366.064,373.581,man walk towards the phone and check for voice messages,51,7
+366.064,373.581,woman walks towards the wall and look at a portrait of herself hanging on the wall,51,7
+373.581,375.506,woman look at a clock hanging on wall ,52,7
+375.506,377.37,clock is taken off from the wall ,52,7
+377.37,384.791,"man is sitting on the dining table, taking apart clock, unscrewing each parts to fix the clock",52,7
+384.791,388.617,man turn his head around,53,7
+384.791,388.617,woman is standing behind man looking at photos of herself hanging on the wall ,53,7
+388.617,391.432,"man sitting on the dining table, turn his had back to continue fixing the clock ",54,7
+391.434,395.899,"man is sleeping on the sofa in the dark living room, covered in blanket",55,7
+395.899,399.206,man drinking water from a bottle,56,7
+399.206,401.683,man drinking water and looking over at the wall  ,56,7
+401.683,410.09,"man holding water bottle, walk towards the wall and look at a scrambled photo of the woman",57,7
+410.09,418.725,man turn his head around and walk towards the bathroom ,57,7
+418.725,422.958,man open the bathroom door and find woman squatting on the bathroom floor washing clothes,58,separated
+418.725,422.958,"woman squatting on the bathroom floor, washing clothes",58,8
+422.958,424.259,"man standing by the bathroom door, watching woman doing laundry on the bathroom floor, scrubbing pieces of clothing with a bar of soap ",58,8
+424.26,426.792,woman stopped scrubbing laundry and look over at man standing by the bathroom door ,58,8
+426.794,427.415,"woman squatting on the bathroom floor, turn her head back and continued doing laundry, scrubbing clothes with soap ",58,8
+427.415,435.957,woman take out wet piece of clothing from bucket and hand launder it by scrubbing soap ,58,8
+435.957,441.096,man observing woman doing the laundry by the bathroom floor smiled and then walk away ,58,8
+441.096,445.339,"man is standing by kitchen counter, scooping rice out of a rice cooker into a bowl ",59,8
+445.339,448.176,man carry over the bowl of rice on to the dining table and serve to woman ,60,8
+448.176,454.786,"man serve woman lunch, placing rice and plates of dishes closer to the woman ",61,8
+448.176,454.786,"woman sitting on dining table in front of food, being served by man ",61,8
+454.786,458.536,man walk away and towards the plants in the living room ,61,8
+454.786,458.536,woman turn hear had to watch man walk away then turn her had back towards food in front of her ,61,8
+458.536,461.722,man grabbed a watering spray and started watering the plants ,61,8
+461.722,462.282,woman sitting on dining table started eating using chopsticks ,61,8
+462.282,474.786,"man is watering plants, taking glances at woman ",61,8
+462.282,474.786,"woman eating food using chopsticks, taking glances at man ",61,8
+474.786,475.739,man turn his head towards the front door ,62,8
+475.739,478.381,"a stranger woman, seen through the home security intercom camera is at the door, ring the bell waiting for someone to answer ",62,8
+478.381,483.251,man walked towards the front door to glance over ,62,separated
+483.249,484.899,"stranger woman, seen through home security intercom camera waiting outside of the apartment, looking around ",62,9
+484.899,487.148,"strager woman, seen through home security intercom camera looked and walked away from apartment ",62,9
+487.19,491.293,man walk back towards the plant and continued watering the plant. ,62,9
+487.19,491.293,Woman turn back onto food on the dining table and continued eating ,62,9
+491.295,496.057,"man posing in front of a scrambled photo, holding up a camera to take a selfie. ",63,9
+496.057,497.874,man pressed the shutter button of his digital camera to take a sefie in front of the scrambled photo,63,9
+497.874,502.124,man and woman are standing around a neighbourhood distributing fliers or takeout menus ,64,9
+502.124,505.753,man and woman are standing outside the gate of a house. ,65,9
+502.124,505.753,woman hand man flyer,65,9
+505.753,512.894,man and woman crossed the street to approach another house in the neighborhood.,65,9
+505.753,512.894,"Woman walking behind man, holding a stack of flyers in her hand",65,9
+512.894,519.658,man and woman ride away through the neighborhood on the motorcycle. ,65,9
+519.658,527.098,man and woman ride in front of the fourth gated house during nighttime and parked the motorcycle outside the front gate,66,9
+527.098,537.415,man walk into the fourth house and look at the photo hanging by the door. ,66,9
+537.415,538.508,man walk inside the house. ,66,9
+537.415,538.508,Woman follows behind man entering the fourth house.,66,9
+538.508,544.018,man standing in front of the stereo and pressed the button on the stereo ,67,separated
+544.018,545.182,man turn the volume knob of the stereo,68,10
+545.182,552.955,"man sitting on the floor by the sofa in the living room take apart the stereo, uncrewing the stereo parts and taking apart stereo",68,10
+545.182,552.955,"woman sit on sofa, observing man fixing the stereo ",68,10
+552.955,557.118,"woman stand up from sofa, walked away and grab a pair of scissors from a cup containing scissors and hand mirror ",69,10
+557.118,563.284,"man is still sitting on the floor fixing stereo, putting stereo cover back and scewing it back in place ",69,10
+563.284,564.448,"woman standing in front of man, hand out scissors in front of man ",69,10
+564.45,567.118,man look at scissors hand out by woman and then look up at woman ,69,10
+567.118,569.634,woman standing in front of man holding scissors out ,69,10
+569.634,574.232,woman sitting on chair having her hair cut.,70,10
+569.634,574.232,Her hair is falling on the ground ,70,10
+569.634,574.232,"Woman sitting on chair, wiggling her feet ",70,10
+574.232,576.913,"woman standing in front of a mirror, tie hair up into a ponytail ",71,10
+576.913,577.802,"woman standing in front of the mirror, tuck a stray hair behind her ear ",71,10
+577.802,580.75,woman look at her self in the mirror ,71,10
+580.75,582.013,woman walk in frame and pose in front of a poster of a boxer ,72,10
+582.013,583.545,"woman raise the camera to take a selfie, she look at the camera lens and pose for a photo ",72,10
+583.545,584.827,man walk in frame and pose in front of the poster of a boxer wearing a boxing glove ,73,10
+584.827,589.388,man and woman pose for a selfie and take a selfie in front of a boxer poster,74,10
